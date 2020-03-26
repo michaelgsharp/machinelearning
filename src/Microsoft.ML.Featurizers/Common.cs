@@ -8,6 +8,16 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Microsoft.ML.Featurizers
 {
+    // Training state of the native featurizers
+    internal enum TrainingState
+    {
+        Pending = 1,
+        Training = 2,
+        Finished = 3, // Done training, but the estimator hasn't created a transformer yet
+        Completed = 4 // Done training, and the estimator has created its transformer
+    };
+
+    // Fit result of the native featurizers
     internal enum FitResult : byte
     {
         Complete = 1,
@@ -121,7 +131,7 @@ namespace Microsoft.ML.Featurizers
 
         protected override bool ReleaseHandle()
         {
-            // Not sure what to do with error stuff here.  There shouldn't ever be one though.
+            // Not sure what to do with error stuff here.  There shoudln't ever be one though.
             return _destroySaveDataHandler(handle, _dataSize, out IntPtr errorHandle);
         }
     }
@@ -163,7 +173,7 @@ namespace Microsoft.ML.Featurizers
 
         protected override bool ReleaseHandle()
         {
-            // Not sure what to do with error stuff here.  There shouldn't ever be one though.
+            // Not sure what to do with error stuff here.  There shoudln't ever be one though.
             return DestroyTransformerSaveDataNative(handle, _dataSize, out _);
         }
     }
