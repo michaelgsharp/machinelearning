@@ -21,7 +21,7 @@ using static Microsoft.ML.Featurizers.CommonExtensions;
 [assembly: LoadableClass(typeof(IDataTransform), typeof(ForecastingPivotTransformer), null, typeof(SignatureLoadDataTransform),
    ForecastingPivotTransformer.UserName, ForecastingPivotTransformer.LoaderSignature)]
 
-[assembly: EntryPointModule(typeof(TimeSeriesTransformerEntrypoint))]
+[assembly: EntryPointModule(typeof(ForecastingPivotTransformerEntrypoint))]
 
 namespace Microsoft.ML.Featurizers
 {

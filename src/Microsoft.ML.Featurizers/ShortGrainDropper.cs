@@ -21,7 +21,7 @@ using static Microsoft.ML.Featurizers.CommonExtensions;
 [assembly: LoadableClass(typeof(IDataTransform), typeof(ShortDropTransformer), null, typeof(SignatureLoadDataTransform),
    ShortDropTransformer.UserName, ShortDropTransformer.LoaderSignature)]
 
-[assembly: EntryPointModule(typeof(TimeSeriesTransformerEntrypoint))]
+[assembly: EntryPointModule(typeof(ShortDropTransformerEntrypoint))]
 
 namespace Microsoft.ML.Featurizers
 {
