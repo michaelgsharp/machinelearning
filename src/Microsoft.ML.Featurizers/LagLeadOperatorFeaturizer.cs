@@ -96,9 +96,10 @@ namespace Microsoft.ML.Featurizers
             var inputColumn = columns[_options.TargetColumn];
 
             if (!LagLeadOperatorTransformer.TypedColumn.IsColumnTypeSupported(inputColumn.ItemType.RawType))
-                throw new InvalidOperationException($"Type {inputColumn.ItemType.RawType.ToString()} for column {_options.TargetColumn} not a supported type.");
+                throw new InvalidOperationException($"Type {inputColumn.ItemType.RawType} for column {_options.TargetColumn} not a supported type.");
 
-            columns[_options.TargetColumn] = new SchemaShape.Column(_options.TargetColumn + "Laglead", VectorKind.Vector,
+            // Adding the offsets to the column name so we which offsets were used.
+            columns[_options.TargetColumn] = new SchemaShape.Column(_options.TargetColumn + "_" + "Laglead" + "_" + string.Join(",", _options.Offsets), VectorKind.Vector,
                 NumberDataViewType.Double, false, inputColumn.Annotations);
 
             return new SchemaShape(columns.Values);
@@ -230,7 +231,7 @@ namespace Microsoft.ML.Featurizers
             internal readonly string Type;
 
             private protected TransformerEstimatorSafeHandle TransformerHandler;
-            private static readonly Type[] _supportedTypes = new Type[] { typeof(sbyte), typeof(short), typeof(int), typeof(long), typeof(byte), typeof(ushort), typeof(uint), typeof(ulong), typeof(float), typeof(double) };
+            private static readonly Type[] _supportedTypes = new Type[] { typeof(double) };
 
             internal TypedColumn(string name, string source, string type)
             {
@@ -491,7 +492,7 @@ namespace Microsoft.ML.Featurizers
             #region Class members
 
             private readonly LagLeadOperatorTransformer _parent;
-            /* Codegen: add any extra class members here */
+            private readonly string _columnName;
 
             #endregion
 
@@ -499,13 +500,13 @@ namespace Microsoft.ML.Featurizers
                 base(parent.Host.Register(nameof(Mapper)), inputSchema, parent)
             {
                 _parent = parent;
+                _columnName = _parent._options.TargetColumn + "_" + "Laglead" + "_" + string.Join(",", _parent._options.Offsets);
             }
 
             protected override DataViewSchema.DetachedColumn[] GetOutputColumnsCore()
             {
-                // TODO: wrapper
-                return null;
-                //return _parent._columns.Select(x => new DataViewSchema.DetachedColumn(x.Name, ColumnTypeExtensions.PrimitiveTypeFromType(x.ReturnType()))).ToArray();
+                // Adding the offsets to the column name so we which offsets were used.
+                return new[] { new DataViewSchema.DetachedColumn(_columnName, new VectorDataViewType(NumberDataViewType.Double, (int)_parent._options.Horizon, _parent._options.Offsets.Length)) };
             }
 
             private Delegate MakeGetter<TSourceType, TOutputType>(DataViewRow input, int iinfo)

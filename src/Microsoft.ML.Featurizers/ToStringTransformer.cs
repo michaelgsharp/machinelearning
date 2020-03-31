@@ -11,6 +11,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Xml.Schema;
 using Microsoft.ML;
 using Microsoft.ML.CommandLine;
 using Microsoft.ML.Data;
@@ -287,19 +288,17 @@ namespace Microsoft.ML.Featurizers
         internal class TransformedDataSafeHandle : SafeHandleZeroOrMinusOneIsInvalid
         {
             private DestroyTransformedDataNative _destroySaveDataHandler;
-            private IntPtr _dataSize;
 
-            public TransformedDataSafeHandle(IntPtr handle, IntPtr dataSize, DestroyTransformedDataNative destroyCppTransformerEstimator) : base(true)
+            public TransformedDataSafeHandle(IntPtr handle, DestroyTransformedDataNative destroyCppTransformerEstimator) : base(true)
             {
                 SetHandle(handle);
-                _dataSize = dataSize;
                 _destroySaveDataHandler = destroyCppTransformerEstimator;
             }
 
             protected override bool ReleaseHandle()
             {
                 // Not sure what to do with error stuff here.  There shoudln't ever be one though.
-                return _destroySaveDataHandler(handle, _dataSize, out IntPtr errorHandle);
+                return _destroySaveDataHandler(handle, out IntPtr errorHandle);
             }
         }
 
@@ -314,7 +313,7 @@ namespace Microsoft.ML.Featurizers
 
         internal delegate bool DestroyCppTransformerEstimator(IntPtr estimator, out IntPtr errorHandle);
         internal delegate bool DestroyTransformerSaveData(IntPtr buffer, IntPtr bufferSize, out IntPtr errorHandle);
-        internal delegate bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+        internal delegate bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
 
         internal abstract class TypedColumn : IDisposable
         {
@@ -492,21 +491,19 @@ namespace Microsoft.ML.Featurizers
             }
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_int8_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, sbyte input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, sbyte input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_int8_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(sbyte input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -580,21 +577,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_int16_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, short input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, short input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_int16_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(short input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -667,21 +662,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_int32_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, int input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, int input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_int32_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(int input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -753,21 +746,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_int64_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, long input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, long input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_int64_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(long input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -839,21 +830,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_uint8_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, byte input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, byte input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_uint8_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(byte input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -925,21 +914,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_uint16_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, ushort input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, ushort input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_uint16_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(ushort input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -1013,21 +1000,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_uint32_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, uint input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, uint input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_uint32_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(uint input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -1101,21 +1086,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_uint64_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, ulong input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, ulong input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_uint64_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(ulong input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -1189,21 +1172,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_float_Transform"), SuppressUnmanagedCodeSecurity]
 
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, float input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, float input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_float_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(float input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -1277,21 +1258,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_double_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, double input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, double input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_double_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(double input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -1365,21 +1344,19 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_bool_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, bool input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, bool input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_bool_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(bool input)
             {
-                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(_transformerHandler, input, out IntPtr output, out IntPtr errorHandle);
                 if (!success)
                 {
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                 }
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    return Encoding.UTF8.GetString(buffer);
+                    return PointerToString(output);
                 }
             }
 
@@ -1453,9 +1430,9 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_string_Transform"), SuppressUnmanagedCodeSecurity]
-            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "StringFeaturizer_string_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal override string Transform(ReadOnlyMemory<char> input)
             {
                 var rawData = Encoding.UTF8.GetBytes(input.ToString() + char.MinValue);
@@ -1464,21 +1441,16 @@ namespace Microsoft.ML.Featurizers
                 try
                 {
                     IntPtr rawDataPtr = handle.AddrOfPinnedObject();
-                    result = TransformDataNative(_transformerHandler, rawDataPtr, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                    result = TransformDataNative(_transformerHandler, rawDataPtr, out IntPtr output, out IntPtr errorHandle);
 
                     if (!result)
                     {
                         throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                     }
 
-                    if (outputSize.ToInt32() == 0)
-                        return string.Empty;
-
-                    using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                    using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                     {
-                        byte[] buffer = new byte[outputSize.ToInt32()];
-                        Marshal.Copy(output, buffer, 0, buffer.Length);
-                        return Encoding.UTF8.GetString(buffer);
+                        return PointerToString(output);
                     }
                 }
                 finally

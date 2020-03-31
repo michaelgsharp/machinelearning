@@ -422,32 +422,22 @@ namespace Microsoft.ML.Featurizers
             // The length of the string is stored at byte* + sizeof(IntPtr).
             private static unsafe string GetStringFromPointer(ref ReadOnlySpan<byte> rawData, ref int index, int intPtrSize)
             {
-                ulong stringLength;
-                ReadOnlySpan<byte> buffer;
+                string result;
+
                 if (intPtrSize == 4)  // 32 bit machine
                 {
-                    stringLength = MemoryMarshal.Read<uint>(rawData.Slice(index + intPtrSize));
                     IntPtr stringData = new IntPtr(MemoryMarshal.Read<int>(rawData.Slice(index)));
-                    buffer = new ReadOnlySpan<byte>(stringData.ToPointer(), (int)stringLength);
-                } else // 64 bit machine
+                    result = PointerToString(stringData);
+                }
+                else // 64 bit machine
                 {
-                    stringLength = MemoryMarshal.Read<ulong>(rawData.Slice(index + intPtrSize));
                     IntPtr stringData = new IntPtr(MemoryMarshal.Read<long>(rawData.Slice(index)));
-                    buffer = new ReadOnlySpan<byte>(stringData.ToPointer(), (int)stringLength);
+                    result = PointerToString(stringData);
                 }
 
-                if (stringLength == 0)
-                {
-                    index += intPtrSize * 2;
-                    return string.Empty;
-                }
+                index += intPtrSize;
 
-                index += intPtrSize * 2;
-#if NETSTANDARD2_0
-                return Encoding.UTF8.GetString(buffer.ToArray());
-#else
-                return Encoding.UTF8.GetString(buffer);
-#endif
+                return result;
             }
 
         };
@@ -628,8 +618,8 @@ namespace Microsoft.ML.Featurizers
             {
                 _intPtrSize = IntPtr.Size;
 
-                // The native struct is 25 bytes + 8 size_t.
-                _structSize = 25 + (_intPtrSize * 8);
+                // The native struct is 25 bytes + 4 size_t.
+                _structSize = 25 + (_intPtrSize * 4);
             }
 
             [DllImport("Featurizers", EntryPoint = "DateTimeFeaturizer_CreateEstimator"), SuppressUnmanagedCodeSecurity]

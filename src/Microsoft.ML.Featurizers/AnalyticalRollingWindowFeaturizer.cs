@@ -115,7 +115,7 @@ namespace Microsoft.ML.Featurizers
             if (!AnalyticalRollingWindowTransformer.TypedColumn.IsColumnTypeSupported(inputColumn.ItemType.RawType))
                 throw new InvalidOperationException($"Type {inputColumn.ItemType.RawType.ToString()} for column {_options.TargetColumn} not a supported type.");
 
-            columns[_options.TargetColumn] = new SchemaShape.Column(_options.TargetColumn + "RollingWindow", VectorKind.Vector,
+            columns[_options.TargetColumn] = new SchemaShape.Column(_options.TargetColumn + "_" + Enum.GetName(typeof(AnalyticalRollingWindowCalculation), _options.WindowCalculation), VectorKind.Vector,
                 NumberDataViewType.Double, false, inputColumn.Annotations);
 
             return new SchemaShape(columns.Values);
@@ -1529,7 +1529,7 @@ namespace Microsoft.ML.Featurizers
             #region Class members
 
             private readonly AnalyticalRollingWindowTransformer _parent;
-            /* Codegen: add any extra class members here */
+            private readonly string _outputColumnName;
 
             #endregion
 
@@ -1537,13 +1537,13 @@ namespace Microsoft.ML.Featurizers
                 base(parent.Host.Register(nameof(Mapper)), inputSchema, parent)
             {
                 _parent = parent;
+                _outputColumnName = _parent._options.TargetColumn + "_" + Enum.GetName(typeof(AnalyticalRollingWindowEstimator.AnalyticalRollingWindowCalculation), _parent._options.WindowCalculation);
             }
 
             protected override DataViewSchema.DetachedColumn[] GetOutputColumnsCore()
             {
-                // TODO: wrapper
-                return null;
-                //return _parent._columns.Select(x => new DataViewSchema.DetachedColumn(x.Name, ColumnTypeExtensions.PrimitiveTypeFromType(x.ReturnType()))).ToArray();
+                // To add future support for when this will do multiple columns at once, output will be a 2d vector so nothing will need to change when that is implemented.
+                return new[] { new DataViewSchema.DetachedColumn(_outputColumnName, new VectorDataViewType(NumberDataViewType.Double, 1, (int)_parent._options.Horizon)) };
             }
 
             private Delegate MakeGetter<TSourceType, TOutputType>(DataViewRow input, int iinfo)

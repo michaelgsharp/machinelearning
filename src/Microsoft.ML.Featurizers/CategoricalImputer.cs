@@ -686,20 +686,13 @@ namespace Microsoft.ML.Featurizers
                 TransformerHandler = CreateTransformerFromEstimatorBase(input);
 
                 // Get the result of the transform and cache it. Pass in null so we get the Mode back.
-                var result = TransformDataNative(TransformerHandler, null, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+                var result = TransformDataNative(TransformerHandler, null, out IntPtr output, out IntPtr errorHandle);
                 if (!result)
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-#if NETSTANDARD2_0
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    Result = new ReadOnlyMemory<char>(Encoding.UTF8.GetString(buffer).ToArray());
-#else
-                    var buffer = new ReadOnlySpan<byte>(output.ToPointer(), outputSize.ToInt32());
-                    Result = new ReadOnlyMemory<char>(Encoding.UTF8.GetString(buffer).ToArray());
-#endif
+                    Result = PointerToString(output).AsMemory();
                 }
             }
 
@@ -714,20 +707,13 @@ namespace Microsoft.ML.Featurizers
                 var handle = new TransformerEstimatorSafeHandle(transformer, DestroyTransformerNative);
 
                 // Get the result of the transform and cache it. Pass in null so we get the Mode back.
-                result = TransformDataNative(handle, null, out IntPtr output, out IntPtr outputSize, out errorHandle);
+                result = TransformDataNative(handle, null, out IntPtr output, out errorHandle);
                 if (!result)
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                using (var handler = new TransformedDataSafeHandle(output, outputSize, DestroyTransformedDataNative))
+                using (var handler = new TransformedDataSafeHandle(output, DestroyTransformedDataNative))
                 {
-#if NETSTANDARD2_0
-                    byte[] buffer = new byte[outputSize.ToInt32()];
-                    Marshal.Copy(output, buffer, 0, buffer.Length);
-                    Result = new ReadOnlyMemory<char>(Encoding.UTF8.GetString(buffer).ToArray());
-#else
-                    var buffer = new ReadOnlySpan<byte>(output.ToPointer(), outputSize.ToInt32());
-                    Result = new ReadOnlyMemory<char>(Encoding.UTF8.GetString(buffer).ToArray());
-#endif
+                    Result = PointerToString(output).AsMemory();
                 }
 
                 return handle;
@@ -737,9 +723,9 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "CatImputerFeaturizer_string_Transform", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, byte* input, out IntPtr output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, byte* input, out IntPtr output, out IntPtr errorHandle);
             [DllImport("Featurizers", EntryPoint = "CatImputerFeaturizer_string_DestroyTransformedData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-            private static extern bool DestroyTransformedDataNative(IntPtr output, IntPtr outputSize, out IntPtr errorHandle);
+            private static extern bool DestroyTransformedDataNative(IntPtr output, out IntPtr errorHandle);
             internal unsafe override ReadOnlyMemory<char> Transform(ReadOnlyMemory<char> input)
             {
                 if (!input.IsEmpty)
