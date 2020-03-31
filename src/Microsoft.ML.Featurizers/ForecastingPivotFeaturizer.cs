@@ -177,7 +177,7 @@ namespace Microsoft.ML.Featurizers
 
     internal static class ForecastingPivotTransformerEntrypoint
     {
-        [TlcModule.EntryPoint(Name = "Transforms.ShortDrop",
+        [TlcModule.EntryPoint(Name = "Transforms.ForcastingPivot",
             Desc = ForecastingPivotTransformer.Summary,
             UserName = ForecastingPivotTransformer.UserName,
             ShortName = ForecastingPivotTransformer.ShortName)]
