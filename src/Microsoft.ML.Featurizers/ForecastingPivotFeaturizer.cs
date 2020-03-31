@@ -34,7 +34,7 @@ namespace Microsoft.ML.Featurizers
         /// <param name="catalog"></param>
         /// <param name="columnsToPivot"></param>
         /// <returns></returns>
-        public static ForecastingPivotFeaturizerEstimator PivotForcastingData(this TransformsCatalog catalog, string[] columnsToPivot)
+        public static ForecastingPivotFeaturizerEstimator PivotForecastingData(this TransformsCatalog catalog, string[] columnsToPivot)
         {
             var options = new ForecastingPivotFeaturizerEstimator.Options
             {
@@ -177,7 +177,7 @@ namespace Microsoft.ML.Featurizers
 
     internal static class ForecastingPivotTransformerEntrypoint
     {
-        [TlcModule.EntryPoint(Name = "Transforms.ForcastingPivot",
+        [TlcModule.EntryPoint(Name = "Transforms.ForecastingPivot",
             Desc = ForecastingPivotTransformer.Summary,
             UserName = ForecastingPivotTransformer.UserName,
             ShortName = ForecastingPivotTransformer.ShortName)]

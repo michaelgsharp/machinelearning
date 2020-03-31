@@ -609,7 +609,7 @@ namespace Microsoft.ML.Featurizers
             private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "CatImputerFeaturizer_double_Transform", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, in double input, out double output, out IntPtr errorHandle);
+            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, double input, out double output, out IntPtr errorHandle);
             internal override double Transform(double input)
             {
                 if (!double.IsNaN(input))
@@ -647,7 +647,7 @@ namespace Microsoft.ML.Featurizers
                 DestroyTransformerNative(transformer, out errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "CatImputerFeaturizer_double_Fit", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-            private static extern bool FitNative(TransformerEstimatorSafeHandle estimator, in double input, out FitResult fitResult, out IntPtr errorHandle);
+            private static extern bool FitNative(TransformerEstimatorSafeHandle estimator, double input, out FitResult fitResult, out IntPtr errorHandle);
             private protected override bool FitHelper(TransformerEstimatorSafeHandle estimator, double input, out FitResult fitResult, out IntPtr errorHandle) =>
                 FitNative(estimator, input, out fitResult, out errorHandle);
 

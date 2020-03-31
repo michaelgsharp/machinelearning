@@ -19198,7 +19198,7 @@
       ]
     },
     {
-      "Name": "Transforms.ForcastingPivot",
+      "Name": "Transforms.ForecastingPivot",
       "Desc": "Pivots the input colums and drops any rows with N/A",
       "FriendlyName": "ForecastingPivot",
       "ShortName": "fpivot",
