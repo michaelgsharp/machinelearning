@@ -165,10 +165,9 @@ namespace Microsoft.ML.RunTests
                 Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
-            // TODO: Uncomment when featurizer fixed.
-            //TestEstimatorCore(pipeline, data);
             Done();
         }
+
         [Fact]
         public void AnalyticalRollingWindow_SimpleMaxTest()
         {
@@ -232,10 +231,9 @@ namespace Microsoft.ML.RunTests
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
 
-            // TODO: Uncomment when featurizer fixed.
-            //TestEstimatorCore(pipeline, data);
             Done();
         }
+
         [Fact]
         public void AnalyticalRollingWindow_ComplexTest()
         {
@@ -374,6 +372,7 @@ namespace Microsoft.ML.RunTests
 
             Done();
         }
+
         [Fact]
         public void ShortDrop_EntryPointTest()
         {
