@@ -21,22 +21,22 @@ using Microsoft.Win32.SafeHandles;
 using static Microsoft.ML.Featurizers.CommonExtensions;
 using static Microsoft.ML.SchemaShape.Column;
 
-[assembly: LoadableClass(typeof(AnalyticalRollingWindowTransformer), null, typeof(SignatureLoadModel),
-    AnalyticalRollingWindowTransformer.UserName, AnalyticalRollingWindowTransformer.LoaderSignature)]
+[assembly: LoadableClass(typeof(RollingWindowTransformer), null, typeof(SignatureLoadModel),
+    RollingWindowTransformer.UserName, RollingWindowTransformer.LoaderSignature)]
 
-[assembly: LoadableClass(typeof(IRowMapper), typeof(AnalyticalRollingWindowTransformer), null, typeof(SignatureLoadRowMapper),
-AnalyticalRollingWindowTransformer.UserName, AnalyticalRollingWindowTransformer.LoaderSignature)]
+[assembly: LoadableClass(typeof(IRowMapper), typeof(RollingWindowTransformer), null, typeof(SignatureLoadRowMapper),
+RollingWindowTransformer.UserName, RollingWindowTransformer.LoaderSignature)]
 
-[assembly: EntryPointModule(typeof(AnalyticalRollingWindowEntrypoint))]
+[assembly: EntryPointModule(typeof(RollingWindowEntrypoint))]
 
 namespace Microsoft.ML.Featurizers
 {
-    public static class AnalyticalRollingWindowExtensionClass
+    public static class RollingWindowExtensionClass
     {
-        public static AnalyticalRollingWindowEstimator AnalyticalRollingWindowTransformer(this TransformsCatalog catalog, string[] grainColumns, string targetColumn, UInt32 horizon, UInt32 maxWindowSize, UInt32 minWindowSize = 1,
-            AnalyticalRollingWindowEstimator.AnalyticalRollingWindowCalculation windowCalculation = AnalyticalRollingWindowEstimator.AnalyticalRollingWindowCalculation.Mean)
+        public static RollingWindowEstimator AnalyticalRollingWindowTransformer(this TransformsCatalog catalog, string[] grainColumns, string targetColumn, RollingWindowEstimator.RollingWindowCalculation windowCalculation,
+            UInt32 horizon, UInt32 maxWindowSize, UInt32 minWindowSize = 1)
         {
-            var options = new AnalyticalRollingWindowEstimator.Options {
+            var options = new RollingWindowEstimator.Options {
                 GrainColumns = grainColumns,
                 TargetColumn = targetColumn,
                 Horizon = horizon,
@@ -45,11 +45,11 @@ namespace Microsoft.ML.Featurizers
                 WindowCalculation = windowCalculation
             };
 
-            return new AnalyticalRollingWindowEstimator(CatalogUtils.GetEnvironment(catalog), options);
+            return new RollingWindowEstimator(CatalogUtils.GetEnvironment(catalog), options);
         }
     }
 
-    public class AnalyticalRollingWindowEstimator : IEstimator<AnalyticalRollingWindowTransformer>
+    public class RollingWindowEstimator : IEstimator<RollingWindowTransformer>
     {
         private Options _options;
         private readonly IHost _host;
@@ -80,31 +80,37 @@ namespace Microsoft.ML.Featurizers
 
             [Argument(ArgumentType.AtMostOnce | ArgumentType.Required, HelpText = "What window calculation to use",
                 Name = "WindowCalculation", ShortName = "calc", SortOrder = 5)]
-            public AnalyticalRollingWindowCalculation WindowCalculation = AnalyticalRollingWindowCalculation.Mean;
+            public RollingWindowCalculation WindowCalculation;
         }
 
         #endregion
 
         #region Class Enums
 
-        public enum AnalyticalRollingWindowCalculation : byte {
-            Mean = 1
+        public enum RollingWindowCalculation : byte {
+            Mean = 1,
+            Min = 2,
+            Max = 3
         };
 
         #endregion
 
-        internal AnalyticalRollingWindowEstimator(IHostEnvironment env, Options options)
+        internal RollingWindowEstimator(IHostEnvironment env, Options options)
         {
             Contracts.CheckValue(env, nameof(env));
-            _host = env.Register(nameof(AnalyticalRollingWindowEstimator));
+            _host = env.Register(nameof(RollingWindowEstimator));
             Contracts.CheckNonEmpty(options.GrainColumns, nameof(options.GrainColumns));
+            Contracts.Check(options.Horizon > 0);
+            Contracts.Check(options.MinWindowSize > 0);
+            Contracts.Check(options.MaxWindowSize > 0);
+            Contracts.Check(options.MaxWindowSize >= options.MinWindowSize);
 
             _options = options;
         }
 
-        public AnalyticalRollingWindowTransformer Fit(IDataView input)
+        public RollingWindowTransformer Fit(IDataView input)
         {
-            return new AnalyticalRollingWindowTransformer(_host, input, _options);
+            return new RollingWindowTransformer(_host, input, _options);
         }
 
         public SchemaShape GetOutputSchema(SchemaShape inputSchema)
@@ -113,10 +119,10 @@ namespace Microsoft.ML.Featurizers
 
             var inputColumn = columns[_options.TargetColumn];
 
-            if (!AnalyticalRollingWindowTransformer.TypedColumn.IsColumnTypeSupported(inputColumn.ItemType.RawType))
-                throw new InvalidOperationException($"Type {inputColumn.ItemType.RawType.ToString()} for column {_options.TargetColumn} not a supported type.");
+            if (!RollingWindowTransformer.TypedColumn.IsColumnTypeSupported(inputColumn.ItemType.RawType))
+                throw new InvalidOperationException($"Type {inputColumn.ItemType.RawType} for column {_options.TargetColumn} not a supported type.");
 
-            var columnName = $"{_options.TargetColumn}_{Enum.GetName(typeof(AnalyticalRollingWindowCalculation), _options.WindowCalculation)}_Hor{_options.Horizon}_MinWin{_options.MinWindowSize}_MaxWin{_options.MaxWindowSize}";
+            var columnName = $"{_options.TargetColumn}_{Enum.GetName(typeof(RollingWindowCalculation), _options.WindowCalculation)}_Hor{_options.Horizon}_MinWin{_options.MinWindowSize}_MaxWin{_options.MaxWindowSize}";
 
             columns[_options.TargetColumn] = new SchemaShape.Column(columnName, VectorKind.Vector,
                 NumberDataViewType.Double, false, inputColumn.Annotations);
@@ -125,22 +131,22 @@ namespace Microsoft.ML.Featurizers
         }
     }
 
-    public sealed class AnalyticalRollingWindowTransformer : RowToRowTransformerBase, IDisposable
+    public sealed class RollingWindowTransformer : RowToRowTransformerBase, IDisposable
     {
         #region Class data members
 
-        internal const string Summary = "Performs an analaytical calculation over a rolling timeseries window";
-        internal const string UserName = "AnalyticalRollingWindow";
-        internal const string ShortName = "AnalyticRollingWindow";
-        internal const string LoaderSignature = "AnalyticalRollingWindow";
+        internal const string Summary = "Performs a calculation over a rolling timeseries window";
+        internal const string UserName = "Rolling Window Featurizer";
+        internal const string ShortName = "RollingWindow";
+        internal const string LoaderSignature = "RollingWindow";
 
         private TypedColumn _column;
-        private AnalyticalRollingWindowEstimator.Options _options;
+        private RollingWindowEstimator.Options _options;
 
         #endregion
 
-        internal AnalyticalRollingWindowTransformer(IHostEnvironment host, IDataView input, AnalyticalRollingWindowEstimator.Options options) :
-            base(host.Register(nameof(AnalyticalRollingWindowTransformer)))
+        internal RollingWindowTransformer(IHostEnvironment host, IDataView input, RollingWindowEstimator.Options options) :
+            base(host.Register(nameof(RollingWindowTransformer)))
         {
             var schema = input.Schema;
             _options = options;
@@ -151,8 +157,8 @@ namespace Microsoft.ML.Featurizers
         }
 
         // Factory method for SignatureLoadModel.
-        internal AnalyticalRollingWindowTransformer(IHostEnvironment host, ModelLoadContext ctx) :
-            base(host.Register(nameof(AnalyticalRollingWindowTransformer)))
+        internal RollingWindowTransformer(IHostEnvironment host, ModelLoadContext ctx) :
+            base(host.Register(nameof(RollingWindowTransformer)))
         {
             Host.CheckValue(ctx, nameof(ctx));
             ctx.CheckAtModel(GetVersionInfo());
@@ -181,14 +187,14 @@ namespace Microsoft.ML.Featurizers
             var minWindowSize = ctx.Reader.ReadUInt32();
             var windowCalculation = ctx.Reader.ReadByte();
 
-            _options = new AnalyticalRollingWindowEstimator.Options()
+            _options = new RollingWindowEstimator.Options()
             {
                 GrainColumns = grainColumns,
                 TargetColumn = targetColumn,
                 Horizon = horizon,
                 MaxWindowSize = maxWindowSize,
                 MinWindowSize = minWindowSize,
-                WindowCalculation = (AnalyticalRollingWindowEstimator.AnalyticalRollingWindowCalculation)windowCalculation
+                WindowCalculation = (RollingWindowEstimator.RollingWindowCalculation)windowCalculation
             };
 
             _column = TypedColumn.CreateTypedColumn(targetColumn, ctx.Reader.ReadString(), _options);
@@ -201,19 +207,19 @@ namespace Microsoft.ML.Featurizers
 
         // Factory method for SignatureLoadRowMapper.
         private static IRowMapper Create(IHostEnvironment env, ModelLoadContext ctx, DataViewSchema inputSchema)
-            => new AnalyticalRollingWindowTransformer(env, ctx).MakeRowMapper(inputSchema);
+            => new RollingWindowTransformer(env, ctx).MakeRowMapper(inputSchema);
 
         private protected override IRowMapper MakeRowMapper(DataViewSchema schema) => new Mapper(this, schema);
 
         private static VersionInfo GetVersionInfo()
         {
             return new VersionInfo(
-                modelSignature: "ANROLW T",
+                modelSignature: "ROLWIN T",
                 verWrittenCur: 0x00010001,
                 verReadableCur: 0x00010001,
                 verWeCanReadBack: 0x00010001,
                 loaderSignature: LoaderSignature,
-                loaderAssemblyName: typeof(AnalyticalRollingWindowTransformer).Assembly.FullName);
+                loaderAssemblyName: typeof(RollingWindowTransformer).Assembly.FullName);
         }
 
         private protected override void SaveModel(ModelSaveContext ctx)
@@ -341,11 +347,15 @@ namespace Microsoft.ML.Featurizers
                 return _supportedTypes.Contains(type);
             }
 
-            internal static TypedColumn CreateTypedColumn(string source, string type, AnalyticalRollingWindowEstimator.Options options)
+            internal static TypedColumn CreateTypedColumn(string source, string type, RollingWindowEstimator.Options options)
             {
-                if (type == typeof(double).ToString())
+                if (type == typeof(double).ToString() && options.WindowCalculation == RollingWindowEstimator.RollingWindowCalculation.Mean)
                 {
-                    return new DoubleTypedColumn(source, options);
+                    return new AnalyticalDoubleTypedColumn(source, options);
+                }
+                else if (type == typeof(double).ToString() && (options.WindowCalculation == RollingWindowEstimator.RollingWindowCalculation.Min || options.WindowCalculation == RollingWindowEstimator.RollingWindowCalculation.Max))
+                {
+                    return new SimpleDoubleTypedColumn(source, options);
                 }
 
                 throw new InvalidOperationException($"Column {source} has an unsupported type {type}.");
@@ -355,9 +365,9 @@ namespace Microsoft.ML.Featurizers
         internal abstract class TypedColumn<TSourceType, TOutputType> : TypedColumn
         {
             private protected IEnumerator<ReadOnlyMemory<char>>[] GrainEnumerators;
-            private protected readonly AnalyticalRollingWindowEstimator.Options Options;
+            private protected readonly RollingWindowEstimator.Options Options;
 
-            internal TypedColumn(string source, string type, AnalyticalRollingWindowEstimator.Options options) :
+            internal TypedColumn(string source, string type, RollingWindowEstimator.Options options) :
                 base(source, type, options.GrainColumns)
             {
                 Options = options;
@@ -499,17 +509,19 @@ namespace Microsoft.ML.Featurizers
 
         #endregion
 
-        #region DoubleTypedColumn
+        // On the native side, these rolling windows are implemented as 2 separate featurizers.
+        // We are only exposing 1 interface in ML.Net, but there needs to be interop code for both.
+        #region AnalyticalDoubleTypedColumn
 
-        internal sealed class DoubleTypedColumn : TypedColumn<double, VBuffer<double>>
+        internal sealed class AnalyticalDoubleTypedColumn : TypedColumn<double, VBuffer<double>>
         {
-            internal DoubleTypedColumn(string source, AnalyticalRollingWindowEstimator.Options options) :
+            internal AnalyticalDoubleTypedColumn(string source, RollingWindowEstimator.Options options) :
                 base(source, typeof(double).ToString(), options)
             {
             }
 
             [DllImport("Featurizers", EntryPoint = "AnalyticalRollingWindowFeaturizer_double_CreateEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-            private static extern bool CreateEstimatorNative(AnalyticalRollingWindowEstimator.AnalyticalRollingWindowCalculation windowCalculation, UInt32 horizon, UInt32 maxWindowSize, UInt32 minWindowSize, out IntPtr estimator, out IntPtr errorHandle);
+            private static extern bool CreateEstimatorNative(RollingWindowEstimator.RollingWindowCalculation windowCalculation, UInt32 horizon, UInt32 maxWindowSize, UInt32 minWindowSize, out IntPtr estimator, out IntPtr errorHandle);
 
             [DllImport("Featurizers", EntryPoint = "AnalyticalRollingWindowFeaturizer_double_DestroyEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
             private static extern bool DestroyEstimatorNative(IntPtr estimator, out IntPtr errorHandle); // Should ONLY be called by safe handle
@@ -610,22 +622,137 @@ namespace Microsoft.ML.Featurizers
 
         #endregion
 
+        // On the native side, these rolling windows are implemented as 2 separate featurizers.
+        // We are only exposing 1 interface in ML.Net, but there needs to be interop code for both.
+        #region SimpleDoubleTypedColumn
+
+        internal sealed class SimpleDoubleTypedColumn : TypedColumn<double, VBuffer<double>>
+        {
+            internal SimpleDoubleTypedColumn(string source, RollingWindowEstimator.Options options) :
+                base(source, typeof(double).ToString(), options)
+            {
+            }
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_CreateEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool CreateEstimatorNative(RollingWindowEstimator.RollingWindowCalculation windowCalculation, UInt32 horizon, UInt32 maxWindowSize, UInt32 minWindowSize, out IntPtr estimator, out IntPtr errorHandle);
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_DestroyEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool DestroyEstimatorNative(IntPtr estimator, out IntPtr errorHandle); // Should ONLY be called by safe handle
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_CreateTransformerFromEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool CreateTransformerFromEstimatorNative(TransformerEstimatorSafeHandle estimator, out IntPtr transformer, out IntPtr errorHandle);
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_DestroyTransformer", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
+            internal override void CreateTransformerFromEstimator(IDataView input)
+            {
+                TransformerHandler = CreateTransformerFromEstimatorBase(input);
+            }
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_CreateTransformerFromSavedData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static unsafe extern bool CreateTransformerFromSavedDataNative(byte* rawData, IntPtr bufferSize, out IntPtr transformer, out IntPtr errorHandle);
+            private protected override unsafe void CreateTransformerFromSavedDataHelper(byte* rawData, IntPtr dataSize)
+            {
+                var result = CreateTransformerFromSavedDataNative(rawData, dataSize, out IntPtr transformer, out IntPtr errorHandle);
+                if (!result)
+                    throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
+
+                TransformerHandler = new TransformerEstimatorSafeHandle(transformer, DestroyTransformerNative);
+            }
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_Transform", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr grainsArray, IntPtr grainsArraySize, double value, out double* output, out IntPtr outputSize, out IntPtr errorHandle);
+            internal unsafe override VBuffer<double> Transform(IntPtr grainsArray, IntPtr grainsArraySize, double input)
+            {
+                var success = TransformDataNative(TransformerHandler, grainsArray, grainsArraySize, input, out double* output, out IntPtr outputSize, out IntPtr errorHandle);
+                if (!success)
+                    throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
+
+                using var handler = new TransformedVectorDataSafeHandle(new IntPtr(output), outputSize, DestroyTransformedDataNative);
+
+                var outputArray = new double[outputSize.ToInt32()];
+
+                for(int i = 0; i < outputSize.ToInt32(); i++)
+                {
+                    outputArray[i] = *output++;
+                }
+
+                var buffer = new VBuffer<double>(outputSize.ToInt32(), outputArray);
+                return buffer;
+            }
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
+            private static unsafe extern bool DestroyTransformedDataNative(IntPtr items, IntPtr itemsSize, out IntPtr errorHandle);
+
+            private protected override bool CreateEstimatorHelper(out IntPtr estimator, out IntPtr errorHandle)
+            {
+                // We are subtracting one from the window calculation because these are 2 different featurizers in the native code and both native enums
+                // start at 1.
+                return CreateEstimatorNative(Options.WindowCalculation - 1, Options.Horizon, Options.MaxWindowSize, Options.MinWindowSize, out estimator, out errorHandle);
+            }
+
+            private protected override bool CreateTransformerFromEstimatorHelper(TransformerEstimatorSafeHandle estimator, out IntPtr transformer, out IntPtr errorHandle) =>
+                CreateTransformerFromEstimatorNative(estimator, out transformer, out errorHandle);
+
+            private protected override bool DestroyEstimatorHelper(IntPtr estimator, out IntPtr errorHandle) =>
+                DestroyEstimatorNative(estimator, out errorHandle);
+
+            private protected override bool DestroyTransformerHelper(IntPtr transformer, out IntPtr errorHandle) =>
+                DestroyTransformerNative(transformer, out errorHandle);
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_Fit", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool FitNative(TransformerEstimatorSafeHandle estimator, IntPtr grainsArray, IntPtr grainsArraySize, double value, out FitResult fitResult, out IntPtr errorHandle);
+            private protected override bool FitHelper(TransformerEstimatorSafeHandle estimator, IntPtr grainsArray, IntPtr grainsArraySize, double value, out FitResult fitResult, out IntPtr errorHandle)
+            {
+                return FitNative(estimator, grainsArray, grainsArraySize, value, out fitResult, out errorHandle);
+
+            }
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_CompleteTraining", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool CompleteTrainingNative(TransformerEstimatorSafeHandle estimator, out IntPtr errorHandle);
+            private protected override bool CompleteTrainingHelper(TransformerEstimatorSafeHandle estimator, out IntPtr errorHandle) =>
+                    CompleteTrainingNative(estimator, out errorHandle);
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_CreateTransformerSaveData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool CreateTransformerSaveDataNative(TransformerEstimatorSafeHandle transformer, out IntPtr buffer, out IntPtr bufferSize, out IntPtr error);
+            private protected override bool CreateTransformerSaveDataHelper(out IntPtr buffer, out IntPtr bufferSize, out IntPtr errorHandle) =>
+                CreateTransformerSaveDataNative(TransformerHandler, out buffer, out bufferSize, out errorHandle);
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_GetState", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool GetStateNative(TransformerEstimatorSafeHandle estimator, out TrainingState trainingState, out IntPtr errorHandle);
+            private protected override bool GetStateHelper(TransformerEstimatorSafeHandle estimator, out TrainingState trainingState, out IntPtr errorHandle) =>
+                GetStateNative(estimator, out trainingState, out errorHandle);
+
+            [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_OnDataCompleted", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+            private static extern bool OnDataCompletedNative(TransformerEstimatorSafeHandle estimator, out IntPtr errorHandle);
+            private protected override bool OnDataCompletedHelper(TransformerEstimatorSafeHandle estimator, out IntPtr errorHandle) =>
+                    OnDataCompletedNative(estimator, out errorHandle);
+
+            public override void Dispose()
+            {
+                if (!TransformerHandler.IsClosed)
+                    TransformerHandler.Dispose();
+            }
+        }
+
+        #endregion
+
         #endregion
 
         private sealed class Mapper : MapperBase
         {
             #region Class members
 
-            private readonly AnalyticalRollingWindowTransformer _parent;
+            private readonly RollingWindowTransformer _parent;
             private readonly string _outputColumnName;
 
             #endregion
 
-            public Mapper(AnalyticalRollingWindowTransformer parent, DataViewSchema inputSchema) :
+            public Mapper(RollingWindowTransformer parent, DataViewSchema inputSchema) :
                 base(parent.Host.Register(nameof(Mapper)), inputSchema, parent)
             {
                 _parent = parent;
-                _outputColumnName = $"{_parent._options.TargetColumn}_{Enum.GetName(typeof(AnalyticalRollingWindowEstimator.AnalyticalRollingWindowCalculation), _parent._options.WindowCalculation)}_Hor{_parent._options.Horizon}_MinWin{_parent._options.MinWindowSize}_MaxWin{_parent._options.MaxWindowSize}";
+                _outputColumnName = $"{_parent._options.TargetColumn}_{Enum.GetName(typeof(RollingWindowEstimator.RollingWindowCalculation), _parent._options.WindowCalculation)}_Hor{_parent._options.Horizon}_MinWin{_parent._options.MinWindowSize}_MaxWin{_parent._options.MaxWindowSize}";
             }
 
             protected override DataViewSchema.DetachedColumn[] GetOutputColumnsCore()
@@ -713,16 +840,16 @@ namespace Microsoft.ML.Featurizers
         }
     }
 
-    internal static class AnalyticalRollingWindowEntrypoint
+    internal static class RollingWindowEntrypoint
     {
         [TlcModule.EntryPoint(Name = "Transforms.AnalyticalRollingWindow",
-            Desc = AnalyticalRollingWindowTransformer.Summary,
-            UserName = AnalyticalRollingWindowTransformer.UserName,
-            ShortName = AnalyticalRollingWindowTransformer.ShortName)]
-        public static CommonOutputs.TransformOutput AnalyticalRollingWindow(IHostEnvironment env, AnalyticalRollingWindowEstimator.Options input)
+            Desc = RollingWindowTransformer.Summary,
+            UserName = RollingWindowTransformer.UserName,
+            ShortName = RollingWindowTransformer.ShortName)]
+        public static CommonOutputs.TransformOutput AnalyticalRollingWindow(IHostEnvironment env, RollingWindowEstimator.Options input)
         {
-            var h = EntryPointUtils.CheckArgsAndCreateHost(env, AnalyticalRollingWindowTransformer.ShortName, input);
-            var xf = new AnalyticalRollingWindowEstimator(h, input).Fit(input.Data).Transform(input.Data);
+            var h = EntryPointUtils.CheckArgsAndCreateHost(env, RollingWindowTransformer.ShortName, input);
+            var xf = new RollingWindowEstimator(h, input).Fit(input.Data).Transform(input.Data);
             return new CommonOutputs.TransformOutput()
             {
                 Model = new TransformModelImpl(h, xf, input.Data),

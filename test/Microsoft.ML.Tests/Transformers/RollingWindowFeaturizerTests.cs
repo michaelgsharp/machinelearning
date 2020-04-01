@@ -10,9 +10,9 @@ using Microsoft.ML.TestFramework.Attributes;
 
 namespace Microsoft.ML.Tests.Transformers
 {
-    public class AnalyticalRollingWindowFeaturizerTests : TestDataPipeBase
+    public class RollingWindowFeaturizerTests : TestDataPipeBase
     {
-        public AnalyticalRollingWindowFeaturizerTests(ITestOutputHelper output) : base(output)
+        public RollingWindowFeaturizerTests(ITestOutputHelper output) : base(output)
         {
         }
 
@@ -24,7 +24,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", 2, 2, 2, AnalyticalRollingWindowEstimator.AnalyticalRollingWindowCalculation.Mean);
+            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 2, 2, 2);
 
             Assert.Throws<InvalidOperationException>(() => pipeline.Fit(data));
             Assert.Throws<InvalidOperationException>(() => pipeline.GetOutputSchema(SchemaShape.Create(data.Schema)));
@@ -45,7 +45,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", 1, 1);
+            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1);
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
@@ -77,7 +77,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", 4, 3, 2);
+            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 4, 3, 2);
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
@@ -97,7 +97,7 @@ namespace Microsoft.ML.Tests.Transformers
         }
 
         [Fact]
-        public void SimpleTest()
+        public void SimpleMinTest()
         {
             MLContext mlContext = new MLContext(1);
             var dataList = new[] {
@@ -109,7 +109,89 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", 1, 1);
+            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Min, 1, 1);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA_Min_Hor1_MinWin1_MaxWin1"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+
+            // TODO: Uncomment when featurizer fixed.
+            //TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [Fact]
+        public void SimpleMaxTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = "Grain", ColA = 1.0 },
+                new { GrainA = "Grain", ColA = 2.0 },
+                new { GrainA = "Grain", ColA = 3.0 },
+                new { GrainA = "Grain", ColA = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Max, 1, 1);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA_Max_Hor1_MinWin1_MaxWin1"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+
+            // TODO: Uncomment when featurizer fixed.
+            //TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [Fact]
+        public void SimpleMeanTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = "Grain", ColA = 1.0 },
+                new { GrainA = "Grain", ColA = 2.0 },
+                new { GrainA = "Grain", ColA = 3.0 },
+                new { GrainA = "Grain", ColA = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1);
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
