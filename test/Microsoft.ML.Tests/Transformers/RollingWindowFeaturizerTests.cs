@@ -24,7 +24,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 2, 2, 2);
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 2, 2, 2);
 
             Assert.Throws<InvalidOperationException>(() => pipeline.Fit(data));
             Assert.Throws<InvalidOperationException>(() => pipeline.GetOutputSchema(SchemaShape.Create(data.Schema)));
@@ -45,7 +45,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1);
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1);
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
@@ -77,7 +77,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 4, 3, 2);
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 4, 3, 2);
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
@@ -109,7 +109,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Min, 1, 1);
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Min, 1, 1);
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
@@ -150,7 +150,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Max, 1, 1);
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Max, 1, 1);
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
@@ -191,7 +191,7 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.AnalyticalRollingWindowTransformer(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1);
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1);
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;

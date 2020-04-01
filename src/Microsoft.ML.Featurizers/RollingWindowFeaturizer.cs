@@ -33,7 +33,7 @@ namespace Microsoft.ML.Featurizers
 {
     public static class RollingWindowExtensionClass
     {
-        public static RollingWindowEstimator AnalyticalRollingWindowTransformer(this TransformsCatalog catalog, string[] grainColumns, string targetColumn, RollingWindowEstimator.RollingWindowCalculation windowCalculation,
+        public static RollingWindowEstimator RollingWindow(this TransformsCatalog catalog, string[] grainColumns, string targetColumn, RollingWindowEstimator.RollingWindowCalculation windowCalculation,
             UInt32 horizon, UInt32 maxWindowSize, UInt32 minWindowSize = 1)
         {
             var options = new RollingWindowEstimator.Options {
