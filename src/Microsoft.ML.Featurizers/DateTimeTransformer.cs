@@ -127,7 +127,6 @@ namespace Microsoft.ML.Featurizers
             Contracts.CheckValue(env, nameof(env));
             _host = Contracts.CheckRef(env, nameof(env)).Register("DateTimeTransformerEstimator");
             _host.CheckValue(inputColumnName, nameof(inputColumnName), "Input column should not be null.");
-            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
 
             _options = new Options
             {
@@ -141,7 +140,6 @@ namespace Microsoft.ML.Featurizers
         {
             Contracts.CheckValue(env, nameof(env));
             _host = Contracts.CheckRef(env, nameof(env)).Register("DateTimeTransformerEstimator");
-            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
 
             _options = options;
         }
@@ -253,8 +251,6 @@ namespace Microsoft.ML.Featurizers
         internal DateTimeTransformer(IHostEnvironment host, string inputColumnName, string columnPrefix, DateTimeEstimator.HolidayList country, DataViewSchema schema) :
             base(host.Register(nameof(DateTimeTransformer)))
         {
-            host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
-
             _schema = schema;
             if (_schema[inputColumnName].Type.RawType != typeof(long) &&
                 _schema[inputColumnName].Type.RawType != typeof(DateTime))
@@ -272,7 +268,6 @@ namespace Microsoft.ML.Featurizers
         {
 
             Host.CheckValue(ctx, nameof(ctx));
-            host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
 
             ctx.CheckAtModel(GetVersionInfo());
             // *** Binary format ***

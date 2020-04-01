@@ -184,11 +184,9 @@ namespace Microsoft.ML.Featurizers
         internal TimeSeriesImputerEstimator(IHostEnvironment env, string timeSeriesColumn, string[] grainColumns, string[] filterColumns, FilterMode filterMode, ImputationStrategy imputeMode, bool supressTypeErrors)
         {
             Contracts.CheckValue(env, nameof(env));
-            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
             _host = Contracts.CheckRef(env, nameof(env)).Register("TimeSeriesImputerEstimator");
             _host.CheckValue(timeSeriesColumn, nameof(timeSeriesColumn), "TimePoint column should not be null.");
             _host.CheckNonEmpty(grainColumns, nameof(grainColumns), "Need at least one grain column.");
-            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
             if (filterMode == FilterMode.Include)
                 _host.CheckNonEmpty(filterColumns, nameof(filterColumns), "Need at least 1 filter column if a FilterMode is specified");
 
@@ -206,12 +204,10 @@ namespace Microsoft.ML.Featurizers
         internal TimeSeriesImputerEstimator(IHostEnvironment env, Options options)
         {
             Contracts.CheckValue(env, nameof(env));
-            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
             _host = Contracts.CheckRef(env, nameof(env)).Register("TimeSeriesImputerEstimator");
             _host.CheckValue(options.TimeSeriesColumn, nameof(options.TimeSeriesColumn), "TimePoint column should not be null.");
             _host.CheckValue(options.GrainColumns, nameof(options.GrainColumns), "Grain columns should not be null.");
             _host.CheckNonEmpty(options.GrainColumns, nameof(options.GrainColumns), "Need at least one grain column.");
-            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
             if (options.FilterMode != FilterMode.NoFilter)
                 _host.CheckNonEmpty(options.FilterColumns, nameof(options.FilterColumns), "Need at least 1 filter column if a FilterMode is specified");
 
@@ -272,8 +268,6 @@ namespace Microsoft.ML.Featurizers
         // Normal constructor.
         internal TimeSeriesImputerTransformer(IHostEnvironment host, TimeSeriesImputerEstimator.Options options, IDataView input)
         {
-            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
-
             _host = host.Register(nameof(TimeSeriesImputerTransformer));
             _timeSeriesColumn = options.TimeSeriesColumn;
             _grainColumns = options.GrainColumns;
@@ -305,7 +299,6 @@ namespace Microsoft.ML.Featurizers
         // Factory method for SignatureLoadModel.
         internal TimeSeriesImputerTransformer(IHostEnvironment host, ModelLoadContext ctx)
         {
-            _host.Check(!CommonExtensions.OsIsCentOS7(), "CentOS7 is not supported");
             _host = host.Register(nameof(TimeSeriesImputerTransformer));
 
             // *** Binary format ***
