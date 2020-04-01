@@ -42,9 +42,6 @@ namespace Microsoft.ML.RunTests
         public TestFeaturizersEntryPoints(ITestOutputHelper output) : base(output)
         {
             Env.ComponentCatalog.RegisterAssembly(typeof(RollingWindowEstimator).Assembly);
-            Env.ComponentCatalog.RegisterAssembly(typeof(LagLeadOperatorEstimator).Assembly);
-            Env.ComponentCatalog.RegisterAssembly(typeof(ForecastingPivotFeaturizerEstimator).Assembly);
-            Env.ComponentCatalog.RegisterAssembly(typeof(ShortGrainDropperEstimator).Assembly);
         }
 
         [Fact]
