@@ -16980,8 +16980,8 @@
     {
       "Name": "Transforms.AnalyticalRollingWindow",
       "Desc": "Performs an analaytical calculation over a rolling timeseries window",
-      "FriendlyName": "AnalyticalRollingWindowTransformer",
-      "ShortName": "AnalyticalRollingWindowTransformer",
+      "FriendlyName": "AnalyticalRollingWindow",
+      "ShortName": "AnalyticRollingWindow",
       "Inputs": [
         {
           "Name": "GrainColumns",
@@ -17050,7 +17050,7 @@
           "Required": true,
           "SortOrder": 4.0,
           "IsNullable": false,
-          "Default": 0
+          "Default": 1
         },
         {
           "Name": "WindowCalculation",
@@ -17067,7 +17067,7 @@
           "Required": true,
           "SortOrder": 5.0,
           "IsNullable": false,
-          "Default": "0"
+          "Default": "Mean"
         }
       ],
       "Outputs": [

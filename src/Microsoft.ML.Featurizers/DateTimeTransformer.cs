@@ -331,7 +331,7 @@ namespace Microsoft.ML.Featurizers
             _column.Dispose();
         }
 
-        #region C++ Safe handle classes
+        #region Native Safe handle classes
 
         internal class TransformedDataSafeHandle : SafeHandleZeroOrMinusOneIsInvalid
         {
