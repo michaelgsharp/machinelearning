@@ -47,7 +47,7 @@ namespace Microsoft.ML.RunTests
         }
         public TestFeaturizersEntryPoints(ITestOutputHelper output) : base(output)
         {
-            Env.ComponentCatalog.RegisterAssembly(typeof(ExponentialAverageTransform).Assembly);
+            Env.ComponentCatalog.RegisterAssembly(typeof(DateTimeEstimator).Assembly);
         }
 
         [Fact]
