@@ -65,7 +65,7 @@ namespace Microsoft.ML.RunTests
                     'Name': 'Transforms.DateTimeSplitter',
                     'Inputs': {
                             'Source': 'date',
-                            'Data' : 'data',
+                            'Data' : '$data',
                             'Prefix' : 'pref_'
                     },
                     'Outputs' : {
