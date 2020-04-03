@@ -39,34 +39,36 @@ namespace Microsoft.ML.RunTests
 {
     public class TestFeaturizersEntryPoints : CoreBaseTestClass
     {
-
-
-        private class DateTimeInput
-        {
-            public long date;
-        }
         public TestFeaturizersEntryPoints(ITestOutputHelper output) : base(output)
         {
-            Env.ComponentCatalog.RegisterAssembly(typeof(DateTimeEstimator).Assembly);
+            Env.ComponentCatalog.RegisterAssembly(typeof(RollingWindowEstimator).Assembly);
         }
 
         [Fact]
-        public void DateTime()
+        public void AnalyticalRollingWindow_SimpleMeanTest()
         {
-            // Date - 2025 June 30
             MLContext mlContext = new MLContext(1);
-            var dataList = new[] { new DateTimeInput() { date = 1751241600 } };
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             string inputGraph = @"
             {
                 'Nodes':
                 [{
-                    'Name': 'Transforms.DateTimeSplitter',
+                    'Name': 'Transforms.AnalyticalRollingWindow',
                     'Inputs': {
-                            'Source': 'date',
+                            'GrainColumns': ['Grain'],
+                            'TargetColumn' : 'Target',
                             'Data' : '$data',
-                            'Prefix' : 'pref_'
+                            'Horizon': 1,
+                            'MaxWindowSize' : 1,
+                            'MinWindowSize' : 1,
+                            'WindowCalculation' : 'Mean'
                     },
                     'Outputs' : {
                         'OutputData': '$outputData',
@@ -78,41 +80,340 @@ namespace Microsoft.ML.RunTests
             ";
 
             JObject graph = JObject.Parse(inputGraph);
+
             var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
             runner.SetInput("data", data);
             runner.RunAll();
 
-
             var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
 
-            // Get the data from the first row and make sure it matches expected
-            var row = output.Preview(1).RowView[0].Values;
-            /*
-            // Assert the data from the first row is what we expect
-            Assert.Equal(2025, row[1].Value);                           // Year
-            Assert.Equal((byte)6, row[2].Value);                        // Month
-            Assert.Equal((byte)30, row[3].Value);                       // Day
-            Assert.Equal((byte)0, row[4].Value);                        // Hour
-            Assert.Equal((byte)0, row[5].Value);                        // Minute
-            Assert.Equal((byte)0, row[6].Value);                        // Second
-            Assert.Equal((byte)0, row[7].Value);                        // AmPm
-            Assert.Equal((byte)0, row[8].Value);                        // Hour12
-            Assert.Equal((byte)1, row[9].Value);                        // DayOfWeek
-            Assert.Equal((byte)91, row[10].Value);                      // DayOfQuarter
-            Assert.Equal((ushort)180, row[11].Value);                   // DayOfYear
-            Assert.Equal((ushort)4, row[12].Value);                     // WeekOfMonth
-            Assert.Equal((byte)2, row[13].Value);                       // QuarterOfYear
-            Assert.Equal((byte)1, row[14].Value);                       // HalfOfYear
-            Assert.Equal((byte)27, row[15].Value);                      // WeekIso
-            Assert.Equal(2025, row[16].Value);                          // YearIso
-            Assert.Equal("June", row[17].Value.ToString());             // MonthLabel
-            Assert.Equal("am", row[18].Value.ToString());               // AmPmLabel
-            Assert.Equal("Monday", row[19].Value.ToString());           // DayOfWeekLabel
-            Assert.Equal("", row[20].Value.ToString());  // HolidayName
-            Assert.Equal((byte)0, row[21].Value);                       // IsPaidTimeOff
+            var addedColumn = schema["Target_Mean_Hor1_MinWin1_MaxWin1"];
+            var columnType = addedColumn.Type as VectorDataViewType;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.NotNull(columnType);
+            Assert.True(columnType.IsKnownSize);
+            Assert.True(columnType.Dimensions.Length == 2);
+            Assert.True(columnType.Dimensions[0] == 1);
+            Assert.True(columnType.Dimensions[1] == 1);
+            Assert.True(columnType.ItemType.RawType == typeof(double));
 
             Done();
-            */
+        }
+
+        [Fact]
+        public void AnalyticalRollingWindow_SimpleMinTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'TargetColumn' : 'Target',
+                            'Data' : '$data',
+                            'Horizon': 1,
+                            'MaxWindowSize' : 1,
+                            'MinWindowSize' : 1,
+                            'WindowCalculation' : 'Min'
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            var addedColumn = schema["Target_Min_Hor1_MinWin1_MaxWin1"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+            Done();
+        }
+
+        [Fact]
+        public void AnalyticalRollingWindow_SimpleMaxTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'TargetColumn' : 'Target',
+                            'Data' : '$data',
+                            'Horizon': 1,
+                            'MaxWindowSize' : 1,
+                            'MinWindowSize' : 1,
+                            'WindowCalculation' : 'Max'
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            var addedColumn = schema["Target_Max_Hor1_MinWin1_MaxWin1"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+
+            Done();
+        }
+
+        [Fact]
+        public void AnalyticalRollingWindow_ComplexTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'TargetColumn' : 'Target',
+                            'Data' : '$data',
+                            'Horizon': 4,
+                            'MaxWindowSize' : 3,
+                            'MinWindowSize' : 2,
+                            'WindowCalculation' : 'Mean'
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            var addedColumn = schema["Target_Mean_Hor4_MinWin2_MaxWin3"];
+            var columnType = addedColumn.Type as VectorDataViewType;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.NotNull(columnType);
+            Assert.True(columnType.IsKnownSize);
+            Assert.True(columnType.Dimensions.Length == 2);
+            Assert.True(columnType.Dimensions[0] == 1);
+            Assert.True(columnType.Dimensions[1] == 4);
+            Assert.True(columnType.ItemType.RawType == typeof(double));
+
+            Done();
+        }
+
+        [Fact]
+        public void LagLead_EntryPointTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.LagLeadOperator',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'TargetColumn' : 'Target',
+                            'Data' : '$data',
+                            'Horizon': 1,
+                            'offsets' : [-3, 1]
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            // TODO: complete this test after lag lead is fully implemented
+            Done();
+        }
+
+        [Fact]
+        public void ForecastingPivot_EntryPointTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.ForecastingPivot',
+                    'Inputs': {
+                            'ColumnsToPivot': ['Grain'],
+                            'Data' : '$data'
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            // TODO: complete this test after forecasting pivot is fully implemented
+
+            Done();
+        }
+
+        [Fact]
+        public void ShortDrop_EntryPointTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.ShortDrop',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'Horizon': 1,
+                            'Data' : '$data',
+                            'MaxWindowSize' : 3,
+                            'CrossValidations' : 2,
+                            'offsets' : [-3, 1]
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            // TODO: complete this test after short grain dropper is fully implemented
+
+            Done();
         }
     }
 }
