@@ -33,20 +33,14 @@ namespace Microsoft.ML.Featurizers
         /// </summary>
         /// <param name="catalog"></param>
         /// <param name="grainColumns"></param>
-        /// <param name="horizon"></param>
-        /// <param name="maxWindowSize"></param>
-        /// <param name="offsets"></param>
-        /// <param name="crossValidations"></param>
+        /// <param name="minPoints"></param>
         /// <returns></returns>
-        public static ShortGrainDropperEstimator DropShortGrains(this TransformsCatalog catalog, string[] grainColumns, UInt32 horizon, UInt32 maxWindowSize, long[] offsets, UInt32 crossValidations = 0)
+        public static ShortGrainDropperEstimator DropShortGrains(this TransformsCatalog catalog, string[] grainColumns, UInt32 minPoints)
         {
             var options = new ShortGrainDropperEstimator.Options
             {
                 GrainColumns = grainColumns,
-                Horizon = horizon,
-                MaxWindowSize = maxWindowSize,
-                Offsets = offsets,
-                CrossValidations = crossValidations
+                MinPoints = minPoints
             };
 
             return new ShortGrainDropperEstimator(CatalogUtils.GetEnvironment(catalog), options);
@@ -66,21 +60,9 @@ namespace Microsoft.ML.Featurizers
             [Argument((ArgumentType.MultipleUnique | ArgumentType.Required), HelpText = "List of grain columns", Name = "GrainColumns", ShortName = "grains", SortOrder = 0)]
             public string[] GrainColumns;
 
-            [Argument(ArgumentType.AtMostOnce | ArgumentType.Required, HelpText = "Maximum horizon value",
-                Name = "Horizon", ShortName = "hor", SortOrder = 1)]
-            public UInt32 Horizon;
-
-            [Argument(ArgumentType.AtMostOnce | ArgumentType.Required, HelpText = "Maximum window size",
-                Name = "MaxWindowSize", ShortName = "maxsize", SortOrder = 2)]
-            public UInt32 MaxWindowSize;
-
-            [Argument(ArgumentType.Multiple | ArgumentType.Required, HelpText = "Lag and Lead offset to use. A negative number is a lag, positive is a lead",
-                Name = "offsets", ShortName = "off", SortOrder = 3)]
-            public long[] Offsets;
-
-            [Argument(ArgumentType.AtMostOnce, HelpText = "Number of cross validations being performed.",
-                Name = "CrossValidations", ShortName = "crossv", SortOrder = 2)]
-            public UInt32 CrossValidations;
+            [Argument(ArgumentType.AtMostOnce | ArgumentType.Required, HelpText = "Minimum number of values required",
+                Name = "MinPoints", ShortName = "minp", SortOrder = 1)]
+            public UInt32 MinPoints;
         }
 
         #endregion
@@ -91,18 +73,25 @@ namespace Microsoft.ML.Featurizers
             _host = Contracts.CheckRef(env, nameof(env)).Register("ShortDropEstimator");
             _host.CheckValue(options.GrainColumns, nameof(options.GrainColumns), "Grain columns should not be null.");
             _host.CheckNonEmpty(options.GrainColumns, nameof(options.GrainColumns), "Need at least one grain column.");
+            Contracts.Check(options.MinPoints > 0, "Min points must be greater than 0");
 
             _options = options;
         }
 
         public ShortDropTransformer Fit(IDataView input)
         {
+            if (!AllGrainColumnsAreStrings(input.Schema, _options.GrainColumns))
+                throw new InvalidOperationException("Grain columns can only be of type string");
+
             return new ShortDropTransformer(_host, _options, input);
         }
 
         public SchemaShape GetOutputSchema(SchemaShape inputSchema)
         {
-            // We dont change the schema, we just drop rows
+            // We dont change the schema, we just drop rows. Still validate input columns are correct type
+            if (!AllGrainColumnsAreStrings(inputSchema, _options.GrainColumns))
+                throw new InvalidOperationException("Grain columns can only be of type string");
+
             return inputSchema;
         }
     }
@@ -140,11 +129,7 @@ namespace Microsoft.ML.Featurizers
             // *** Binary format ***
             // length of grain column array
             // all column names in grain column array
-            // Horizon
-            // MaxWindowSize
-            // length of offset array
-            // offsets
-            // CrossValidation
+            // MinPoints
             // length of C++ state array
             // C++ byte state array
 
@@ -152,21 +137,12 @@ namespace Microsoft.ML.Featurizers
             for (int i = 0; i < grainColumns.Length; i++)
                 grainColumns[i] = ctx.Reader.ReadString();
 
-            var horizon = ctx.Reader.ReadUInt32();
-            var maxWindow = ctx.Reader.ReadUInt32();
-
-            var offsets = new long[ctx.Reader.ReadInt32()];
-            for (int i = 0; i < offsets.Length; i++)
-                offsets[i] = ctx.Reader.ReadInt64();
-
-            var crossValidation = ctx.Reader.ReadUInt32();
+            var minPoints = ctx.Reader.ReadUInt32();
 
             _options = new ShortGrainDropperEstimator.Options
             {
                 GrainColumns = grainColumns,
-                Horizon = horizon,
-                MaxWindowSize = maxWindow,
-                Offsets = offsets
+                MinPoints = minPoints
             };
 
             var nativeState = ctx.Reader.ReadByteArray();
@@ -198,13 +174,7 @@ namespace Microsoft.ML.Featurizers
             IntPtr errorHandle;
             bool success;
 
-            var grainColumns = input.Schema.Where(x => _options.GrainColumns.Contains(x.Name)).Select(x => TypedColumn.CreateTypedColumn(x)).ToDictionary(x => x.Column.Name);
-
-            fixed (long* offsets = _options.Offsets)
-            fixed (UInt32* crossVal = &_options.CrossValidations)
-            {
-                success = CreateEstimatorNative(_options.MaxWindowSize, offsets, new IntPtr(_options.Offsets.Length), _options.Horizon, _options.CrossValidations > 0 ? crossVal : null , out estimator, out errorHandle);
-            }
+            success = CreateEstimatorNative(_options.MinPoints, out estimator, out errorHandle);
             if (!success)
                 throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
@@ -213,18 +183,19 @@ namespace Microsoft.ML.Featurizers
                 TrainingState trainingState;
                 FitResult fitResult;
 
-                // Create buffer to hold binary data
-                var memoryStream = new MemoryStream(4096);
-                var binaryWriter = new BinaryWriter(memoryStream, Encoding.UTF8);
+                // Declare these outside the loop so the size is only set once;
+                GCHandle[] grainHandles = new GCHandle[_options.GrainColumns.Length];
+                IntPtr[] grainArray = new IntPtr[_options.GrainColumns.Length];
+                GCHandle arrayHandle = default;
 
-                // Can't use a using with this because it potentially needs to be reset. Manually disposing as needed.
-                var cursor = input.GetRowCursorForAllColumns();
-                // Initialize getters
-                foreach (var column in grainColumns.Values)
-                    column.InitializeGetter(cursor);
+                // These are initialized in InitializeGrainGetters
+                ValueGetter<ReadOnlyMemory<char>>[] grainGetters = new ValueGetter<ReadOnlyMemory<char>>[_options.GrainColumns.Length];
+                DataViewRowCursor cursor = null;
+
+                // Initialize GrainGetters and put cursor in valid state.
+                InitializeGrainGetters(input, ref cursor, ref grainGetters);
 
                 // Start the loop with the cursor in a valid state already.
-                cursor.MoveNext();
                 while (true)
                 {
                     // Get the state of the native estimator.
@@ -236,25 +207,23 @@ namespace Microsoft.ML.Featurizers
                     if (trainingState != TrainingState.Training)
                         break;
 
-                    // Build byte array to send column data to native featurizer
-                    BuildColumnByteArray(grainColumns, ref binaryWriter);
-
-                    // Fit the estimator
-                    fixed (byte* bufferPointer = memoryStream.GetBuffer())
+                    // Build the grain string array
+                    try
                     {
-                        var binaryArchiveData = new NativeBinaryArchiveData() { Data = bufferPointer, DataSize = new IntPtr(memoryStream.Position) };
-                        success = FitNative(estimatorHandle, binaryArchiveData, out fitResult, out errorHandle);
+                        CreateGrainStringArrays(grainGetters, ref grainHandles, ref arrayHandle, ref grainArray);
+                        // Fit the estimator
+                        success = FitNative(estimatorHandle, arrayHandle.AddrOfPinnedObject(), new IntPtr(grainArray.Length), out fitResult, out errorHandle);
+                        if (!success)
+                            throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
                     }
-
-                    // Reset memory stream to 0
-                    memoryStream.Position = 0;
-
-                    if (!success)
-                        throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
+                    finally
+                    {
+                        FreeGrainStringArrays(ref grainHandles, ref arrayHandle);
+                    }
 
                     // If we need to reset the data to the beginning.
                     if (fitResult == FitResult.ResetAndContinue)
-                        ResetCursor(input, ref cursor, grainColumns);
+                        InitializeGrainGetters(input, ref cursor, ref grainGetters);
 
                     // If we are at the end of the data.
                     if (!cursor.MoveNext())
@@ -263,7 +232,7 @@ namespace Microsoft.ML.Featurizers
                         if (!success)
                             throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                        ResetCursor(input, ref cursor, grainColumns);
+                        InitializeGrainGetters(input, ref cursor, ref grainGetters);
                     }
                 }
 
@@ -284,25 +253,22 @@ namespace Microsoft.ML.Featurizers
             }
         }
 
-        private void ResetCursor(IDataView input, ref DataViewRowCursor cursor, Dictionary<string, TypedColumn> columns)
+        private bool InitializeGrainGetters(IDataView input, ref DataViewRowCursor cursor, ref ValueGetter<ReadOnlyMemory<char>>[] grainGetters)
         {
-            cursor.Dispose();
-            cursor = input.GetRowCursorForAllColumns();
+            // Create getters for the grain columns. Cant use using for the cursor because it may need to be reset.
+            // Manually dispose of the cursor if its not null
+            if (cursor != null)
+                cursor.Dispose();
 
-            // Initialize getters
-            foreach (var column in columns.Values)
-                column.InitializeGetter(cursor);
+            cursor = input.GetRowCursor(input.Schema.Where(x => _options.GrainColumns.Contains(x.Name)));
 
-            // Move cursor to valid position
-            cursor.MoveNext();
-        }
-
-        private void BuildColumnByteArray(Dictionary<string, TypedColumn> allColumns, ref BinaryWriter binaryWriter)
-        {
-            foreach (var column in _options.GrainColumns)
+            for (int i = 0; i < _options.GrainColumns.Length; i++)
             {
-                allColumns[column].SerializeValue(ref binaryWriter);
+                // Inititialize the enumerator and move it to a valid position.
+                grainGetters[i] = cursor.GetGetter<ReadOnlyMemory<char>>(input.Schema[_options.GrainColumns[i]]);
             }
+
+            return cursor.MoveNext();
         }
 
         public bool IsRowToRowMapper => false;
@@ -335,11 +301,7 @@ namespace Microsoft.ML.Featurizers
             // *** Binary format ***
             // length of grain column array
             // all column names in grain column array
-            // Horizon
-            // MaxWindowSize
-            // length of offset array
-            // offsets
-            // CrossValidation
+            // MinPoints
             // length of C++ state array
             // C++ byte state array
 
@@ -347,14 +309,7 @@ namespace Microsoft.ML.Featurizers
             foreach (var column in _options.GrainColumns)
                 ctx.Writer.Write(column);
 
-            ctx.Writer.Write(_options.Horizon);
-            ctx.Writer.Write(_options.MaxWindowSize);
-            ctx.Writer.Write(_options.Offsets.Length);
-
-            foreach (var offset in _options.Offsets)
-                ctx.Writer.Write(offset);
-
-            ctx.Writer.Write(_options.CrossValidations);
+            ctx.Writer.Write(_options.MinPoints);
 
             var data = CreateTransformerSaveData();
             ctx.Writer.Write(data.Length);
@@ -393,134 +348,36 @@ namespace Microsoft.ML.Featurizers
         }
 
         #region C++ function declarations
-        // TODO: Update entry points
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_CreateEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-        private static unsafe extern bool CreateEstimatorNative(UInt32 windowSize, long* offsets, IntPtr offsetsSize, UInt32 horizon, UInt32* crossValidations, out IntPtr estimator, out IntPtr errorHandle);
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_CreateEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+        private static unsafe extern bool CreateEstimatorNative(UInt32 minPoints, out IntPtr estimator, out IntPtr errorHandle);
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_DestroyEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_DestroyEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
         private static extern bool DestroyEstimatorNative(IntPtr estimator, out IntPtr errorHandle); // Should ONLY be called by safe handle
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_DestroyTransformer", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_DestroyTransformer", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
         private static extern bool DestroyTransformerNative(IntPtr transformer, out IntPtr errorHandle);
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_CompleteTraining", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_CompleteTraining", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
         private static extern bool CompleteTrainingNative(TransformerEstimatorSafeHandle estimator, out IntPtr errorHandle);
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_Fit", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-        private static unsafe extern bool FitNative(TransformerEstimatorSafeHandle estimator, NativeBinaryArchiveData data, out FitResult fitResult, out IntPtr errorHandle);
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_Fit", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+        private static unsafe extern bool FitNative(TransformerEstimatorSafeHandle estimator, IntPtr grainsArray, IntPtr grainsArraySize, out FitResult fitResult, out IntPtr errorHandle);
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_CreateTransformerFromEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_CreateTransformerFromEstimator", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
         private static extern bool CreateTransformerFromEstimatorNative(TransformerEstimatorSafeHandle estimator, out IntPtr transformer, out IntPtr errorHandle);
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_CreateTransformerSaveData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_CreateTransformerSaveData", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
         private static extern bool CreateTransformerSaveDataNative(TransformerEstimatorSafeHandle transformer, out IntPtr buffer, out IntPtr bufferSize, out IntPtr error);
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_CreateTransformerFromSavedData"), SuppressUnmanagedCodeSecurity]
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_CreateTransformerFromSavedData"), SuppressUnmanagedCodeSecurity]
         private static unsafe extern bool CreateTransformerFromSavedDataNative(byte* rawData, IntPtr bufferSize, out IntPtr transformer, out IntPtr errorHandle);
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_OnDataCompleted"), SuppressUnmanagedCodeSecurity]
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_OnDataCompleted"), SuppressUnmanagedCodeSecurity]
         private static unsafe extern bool OnDataCompletedNative(TransformerEstimatorSafeHandle estimator, out IntPtr errorHandle);
 
-        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperDropperFeaturizer_GetState"), SuppressUnmanagedCodeSecurity]
+        [DllImport("Featurizers", EntryPoint = "ShortGrainDropperFeaturizer_GetState"), SuppressUnmanagedCodeSecurity]
         private static unsafe extern bool GetStateNative(TransformerEstimatorSafeHandle estimator, out TrainingState trainingState, out IntPtr errorHandle);
-
-        #endregion
-
-        #region Typed Columns
-
-        private abstract class TypedColumn
-        {
-            internal readonly DataViewSchema.Column Column;
-            internal TypedColumn(DataViewSchema.Column column)
-            {
-                Column = column;
-            }
-
-            internal abstract void InitializeGetter(DataViewRowCursor cursor);
-            internal abstract void SerializeValue(ref BinaryWriter binaryWriter);
-            internal abstract TypeId GetTypeId();
-
-            internal static TypedColumn CreateTypedColumn(DataViewSchema.Column column)
-            {
-                var type = column.Type.RawType.ToString();
-                if (type == typeof(ReadOnlyMemory<char>).ToString())
-                    return new StringTypedColumn(column);
-
-                throw new InvalidOperationException($"Unsupported type {type}");
-            }
-        }
-
-        private abstract class TypedColumn<T> : TypedColumn
-        {
-            private ValueGetter<T> _getter;
-            private T _value;
-
-            internal TypedColumn(DataViewSchema.Column column) :
-                base(column)
-            {
-                _value = default;
-            }
-
-            internal override void InitializeGetter(DataViewRowCursor cursor)
-            {
-                _getter = cursor.GetGetter<T>(Column);
-            }
-
-            internal T GetValue()
-            {
-                _getter(ref _value);
-                return _value;
-            }
-
-            internal override TypeId GetTypeId()
-            {
-                return typeof(T).GetNativeTypeIdFromType();
-            }
-        }
-
-        private class StringTypedColumn : TypedColumn<ReadOnlyMemory<char>>
-        {
-
-            internal StringTypedColumn(DataViewSchema.Column column) :
-                base(column)
-            {
-            }
-
-            internal override void SerializeValue(ref BinaryWriter binaryWriter)
-            {
-                var value = GetValue().ToString();
-                var stringBytes = Encoding.UTF8.GetBytes(value);
-
-                binaryWriter.Write(stringBytes.Length);
-
-                binaryWriter.Write(stringBytes);
-            }
-        }
-
-        private class DateTimeTypedColumn : TypedColumn<DateTime>
-        {
-            private static readonly DateTime _unixEpoch = new DateTime(1970, 1, 1);
-            private readonly bool _isNullable;
-
-            internal DateTimeTypedColumn(DataViewSchema.Column column, bool isNullable = false) :
-                base(column)
-            {
-                _isNullable = isNullable;
-            }
-
-            internal override void SerializeValue(ref BinaryWriter binaryWriter)
-            {
-                var dateTime = GetValue();
-
-                var value = dateTime.Subtract(_unixEpoch).Ticks / TimeSpan.TicksPerSecond;
-
-                if (_isNullable)
-                    binaryWriter.Write(true);
-
-                binaryWriter.Write(value);
-            }
-        }
 
         #endregion
     }

@@ -244,5 +244,58 @@ namespace Microsoft.ML.Featurizers
                 return Encoding.UTF8.GetString((byte*)data.ToPointer(), length);
             }
         }
+
+        internal static void CreateGrainStringArrays(ValueGetter<ReadOnlyMemory<char>>[] grainGetters, ref GCHandle[] grainHandles, ref GCHandle arrayHandle, ref IntPtr[] grainArray)
+        {
+            ReadOnlyMemory<char> value = default;
+
+            for (int grainIndex = 0; grainIndex < grainHandles.Length; grainIndex++)
+            {
+                grainGetters[grainIndex](ref value);
+                grainHandles[grainIndex] = GCHandle.Alloc(Encoding.UTF8.GetBytes(value.ToString() + char.MinValue), GCHandleType.Pinned);
+                grainArray[grainIndex] = grainHandles[grainIndex].AddrOfPinnedObject();
+            }
+
+            arrayHandle = GCHandle.Alloc(grainArray, GCHandleType.Pinned);
+        }
+
+        internal static void FreeGrainStringArrays(ref GCHandle[] grainHandles, ref GCHandle arrayHandle)
+        {
+            arrayHandle.Free();
+            foreach (var handle in grainHandles)
+            {
+                handle.Free();
+            }
+        }
+
+        internal static bool AllGrainColumnsAreStrings(SchemaShape inputSchema, string[] grainColumns)
+        {
+            var valid = true;
+            foreach(var grain in grainColumns)
+            {
+                // Make sure the column exists
+                valid &= inputSchema.TryFindColumn(grain, out SchemaShape.Column column);
+
+                // Make sure the column is the right type
+                valid &= (column.ItemType.RawType == typeof(ReadOnlyMemory<char>));
+            }
+
+            return valid;
+        }
+
+        internal static bool AllGrainColumnsAreStrings(DataViewSchema inputSchema, string[] grainColumns)
+        {
+            var valid = true;
+            foreach (var grain in grainColumns)
+            {
+                // Make sure the column exists
+                var column = inputSchema[grain];
+
+                // Make sure the column is the right type
+                valid &= (column.Type.RawType == typeof(ReadOnlyMemory<char>));
+            }
+
+            return valid;
+        }
     }
 }

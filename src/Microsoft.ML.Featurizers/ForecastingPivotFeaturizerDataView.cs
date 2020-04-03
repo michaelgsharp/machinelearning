@@ -17,7 +17,6 @@ using Microsoft.ML.Internal.Utilities;
 using Microsoft.ML.Runtime;
 using Microsoft.Win32.SafeHandles;
 using static Microsoft.ML.Featurizers.CommonExtensions;
-using static Microsoft.ML.Featurizers.ShortGrainDropperEstimator;
 
 namespace Microsoft.ML.Transforms
 {

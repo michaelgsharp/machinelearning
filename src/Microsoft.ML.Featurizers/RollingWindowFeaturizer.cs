@@ -99,11 +99,13 @@ namespace Microsoft.ML.Featurizers
         {
             Contracts.CheckValue(env, nameof(env));
             _host = env.Register(nameof(RollingWindowEstimator));
-            Contracts.CheckNonEmpty(options.GrainColumns, nameof(options.GrainColumns));
-            Contracts.Check(options.Horizon > 0);
-            Contracts.Check(options.MinWindowSize > 0);
-            Contracts.Check(options.MaxWindowSize > 0);
-            Contracts.Check(options.MaxWindowSize >= options.MinWindowSize);
+            _host.CheckValue(options.GrainColumns, nameof(options.GrainColumns), "Grain columns should not be null.");
+            _host.CheckNonEmpty(options.GrainColumns, nameof(options.GrainColumns), "Need at least one grain column.");
+            _host.Check(options.Horizon > 0, "Can't have a horizon of 0.");
+            _host.Check(options.MinWindowSize > 0, "Min window size must be greater then 0.");
+            _host.Check(options.MaxWindowSize > 0, "Max window size must be greater then 0.");
+            _host.Check(options.MaxWindowSize >= options.MinWindowSize,"Max window size must be greater or equal to min window size.");
+            _host.Check(options.Horizon <= int.MaxValue, "Horizon must be less then or equal to int.max");
 
             _options = options;
         }
@@ -115,6 +117,9 @@ namespace Microsoft.ML.Featurizers
 
         public SchemaShape GetOutputSchema(SchemaShape inputSchema)
         {
+            if (!AllGrainColumnsAreStrings(inputSchema, _options.GrainColumns))
+                throw new InvalidOperationException("Grain columns can only be of type string");
+
             var columns = inputSchema.ToDictionary(x => x.Name);
 
             var inputColumn = columns[_options.TargetColumn];
@@ -364,7 +369,8 @@ namespace Microsoft.ML.Featurizers
 
         internal abstract class TypedColumn<TSourceType, TOutputType> : TypedColumn
         {
-            private protected IEnumerator<ReadOnlyMemory<char>>[] GrainEnumerators;
+            private protected DataViewRowCursor Cursor;
+            private protected ValueGetter<ReadOnlyMemory<char>>[] GrainGetters;
             private protected readonly RollingWindowEstimator.Options Options;
 
             internal TypedColumn(string source, string type, RollingWindowEstimator.Options options) :
@@ -373,7 +379,8 @@ namespace Microsoft.ML.Featurizers
                 Options = options;
 
                 // Initialize to the correct length
-                GrainEnumerators = new IEnumerator<ReadOnlyMemory<char>>[GrainColumns.Length];
+                GrainGetters = new ValueGetter<ReadOnlyMemory<char>>[GrainColumns.Length];
+                Cursor = null;
             }
 
             internal abstract TOutputType Transform(IntPtr grainsArray, IntPtr grainsArraySize, TSourceType input);
@@ -395,7 +402,12 @@ namespace Microsoft.ML.Featurizers
                     TrainingState trainingState;
                     FitResult fitResult;
 
-                    InitializeGrainEnumerators(input);
+                    // Declare these outside the loop so the size is only set once;
+                    GCHandle[] grainHandles = new GCHandle[GrainColumns.Length];
+                    IntPtr[] grainArray = new IntPtr[GrainColumns.Length];
+                    GCHandle arrayHandle = default;
+
+                    InitializeGrainGetters(input);
 
                     // Can't use a using with this because it potentially needs to be reset. Manually disposing as needed.
                     var data = input.GetColumn<TSourceType>(Source).GetEnumerator();
@@ -411,21 +423,12 @@ namespace Microsoft.ML.Featurizers
                         if (trainingState != TrainingState.Training)
                             break;
 
-                        // Build the string array
-                        GCHandle[] grainHandles = default;
-                        GCHandle arrayHandle = default;
+                        // Build the grain string array
                         try
                         {
-                            grainHandles = new GCHandle[GrainColumns.Length];
-                            IntPtr[] grainArray = new IntPtr[grainHandles.Length];
-                            for (int grainIndex = 0; grainIndex < grainHandles.Length; grainIndex++)
-                            {
-                                grainHandles[grainIndex] = GCHandle.Alloc(Encoding.UTF8.GetBytes(GrainEnumerators[grainIndex].Current.ToString() + char.MinValue), GCHandleType.Pinned);
-                                grainArray[grainIndex] = grainHandles[grainIndex].AddrOfPinnedObject();
-                            }
+                            CreateGrainStringArrays(GrainGetters, ref grainHandles, ref arrayHandle, ref grainArray);
 
-                            // Fit the estimator
-                            arrayHandle = GCHandle.Alloc(grainArray, GCHandleType.Pinned);
+                            // Train the estimator
                             success = FitHelper(estimatorHandle, arrayHandle.AddrOfPinnedObject(), new IntPtr(grainArray.Length), data.Current, out fitResult, out errorHandle);
                             if (!success)
                                 throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
@@ -433,11 +436,7 @@ namespace Microsoft.ML.Featurizers
                         }
                         finally
                         {
-                            arrayHandle.Free();
-                            foreach (var handle in grainHandles)
-                            {
-                                handle.Free();
-                            }
+                            FreeGrainStringArrays(ref grainHandles, ref arrayHandle);
                         }
 
                         // If we need to reset the data to the beginning.
@@ -445,10 +444,12 @@ namespace Microsoft.ML.Featurizers
                         {
                             data.Dispose();
                             data = input.GetColumn<TSourceType>(Source).GetEnumerator();
+
+                            InitializeGrainGetters(input);
                         }
 
                         // If we are at the end of the data.
-                        if (!data.MoveNext())
+                        if (!data.MoveNext() && !Cursor.MoveNext())
                         {
                             OnDataCompletedHelper(estimatorHandle, out errorHandle);
                             if (!success)
@@ -459,7 +460,7 @@ namespace Microsoft.ML.Featurizers
                             data = input.GetColumn<TSourceType>(Source).GetEnumerator();
                             data.MoveNext();
 
-                            InitializeGrainEnumerators(input);
+                            InitializeGrainGetters(input);
                         }
                     }
 
@@ -473,32 +474,31 @@ namespace Microsoft.ML.Featurizers
                     if (!success)
                         throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                    // Manually dispose of the IEnumerator since we dont have a using statement;
+                    // Manually dispose of the IEnumerator and Cursor since we dont have a using statement;
                     data.Dispose();
-                    for (int i = 0; i < GrainColumns.Length; i++)
-                    {
-                        // Manually dispose because we can't use a using statement.
-                        if (GrainEnumerators[i] != null)
-                            GrainEnumerators[i].Dispose();
-                    }
+                    Cursor.Dispose();
 
                     return new TransformerEstimatorSafeHandle(transformer, DestroyTransformerHelper);
                 }
             }
 
-            private void InitializeGrainEnumerators(IDataView input)
+            private void InitializeGrainGetters(IDataView input)
             {
-                // Create enumerators for the grain columns. Cant use using because it may need to be reset.
+                // Create getters for the grain columns. Cant use using for the cursor because it may need to be reset.
+                // Manually dispose of the cursor if its not null
+                if (Cursor != null)
+                    Cursor.Dispose();
+
+                Cursor = input.GetRowCursor(input.Schema.Where(x => GrainColumns.Contains(x.Name)));
+
                 for (int i = 0; i < GrainColumns.Length; i++)
                 {
-                    // Manually dispose because we can't use a using statement.
-                    if (GrainEnumerators[i] != null)
-                        GrainEnumerators[i].Dispose();
-
                     // Inititialize the enumerator and move it to a valid position.
-                    GrainEnumerators[i] = input.GetColumn<ReadOnlyMemory<char>>(GrainColumns[i]).GetEnumerator();
-                    GrainEnumerators[i].MoveNext();
+                    GrainGetters[i] = Cursor.GetGetter<ReadOnlyMemory<char>>(input.Schema[GrainColumns[i]]);
                 }
+
+                // Move cursor to valid spot.
+                Cursor.MoveNext();
             }
 
             public override Type ReturnType()
@@ -775,38 +775,26 @@ namespace Microsoft.ML.Featurizers
                 }
 
                 // Declaring these outside so they are only done once
-                GCHandle[] grainHandles = default;
+                GCHandle[] grainHandles = new GCHandle[grainColumnCount];
+                IntPtr[] grainArray = new IntPtr[grainHandles.Length];
                 GCHandle arrayHandle = default;
 
                 ValueGetter<TOutputType> result = (ref TOutputType dst) =>
                 {
-                    ReadOnlyMemory<char> grainValue = default;
                     TSourceType value = default;
 
                     // Build the string array
                     try
                     {
-                        grainHandles = new GCHandle[grainColumnCount];
-                        IntPtr[] grainArray = new IntPtr[grainHandles.Length];
-                        for (int grainIndex = 0; grainIndex < grainHandles.Length; grainIndex++)
-                        {
-                            grainGetters[grainIndex](ref grainValue);
-                            grainHandles[grainIndex] = GCHandle.Alloc(Encoding.UTF8.GetBytes(grainValue.ToString() + char.MinValue), GCHandleType.Pinned);
-                            grainArray[grainIndex] = grainHandles[grainIndex].AddrOfPinnedObject();
-                        }
+                        CreateGrainStringArrays(grainGetters, ref grainHandles, ref arrayHandle, ref grainArray);
 
                         srcGetterScalar(ref value);
 
-                        arrayHandle = GCHandle.Alloc(grainArray, GCHandleType.Pinned);
                         dst = ((TypedColumn<TSourceType, TOutputType>)_parent._column).Transform(arrayHandle.AddrOfPinnedObject(), new IntPtr(grainArray.Length), value);
                     }
                     finally
                     {
-                        arrayHandle.Free();
-                        foreach (var handle in grainHandles)
-                        {
-                            handle.Free();
-                        }
+                        FreeGrainStringArrays(ref grainHandles, ref arrayHandle);
                     }
                 };
 

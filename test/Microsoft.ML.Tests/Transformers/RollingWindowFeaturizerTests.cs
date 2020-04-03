@@ -97,6 +97,25 @@ namespace Microsoft.ML.Tests.Transformers
         }
 
         [Fact]
+        public void ConstructorParamterTest() {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = "Grain", ColA = 1.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Make sure invalid constructor args throw.
+            Assert.Throws<InvalidOperationException>(() => mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 0, 1));
+            Assert.Throws<InvalidOperationException>(() => mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 0));
+            Assert.Throws<InvalidOperationException>(() => mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1, 0));
+            Assert.Throws<InvalidOperationException>(() => mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1, 2));
+            Assert.Throws<ArgumentOutOfRangeException>(() => mlContext.Transforms.RollingWindow(new string[] { }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1, 2));
+            Assert.Throws<ArgumentNullException>(() => mlContext.Transforms.RollingWindow(null, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1, 2));
+
+            Done();
+        }
+
+        [Fact]
         public void SimpleMinTest()
         {
             MLContext mlContext = new MLContext(1);
@@ -200,6 +219,47 @@ namespace Microsoft.ML.Tests.Transformers
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
+            var index = 0;
+            var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
+
+            VBuffer<double> buffer = default;
+
+            while (cursor.MoveNext())
+            {
+                getter(ref buffer);
+                var bufferValues = buffer.GetValues();
+
+                Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
+                Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
+            }
+
+            // TODO: Uncomment when featurizer fixed.
+            //TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        [Fact]
+        public void MultipleGrains()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { GrainA = "GrainOne", ColA = 1.0 },
+                new { GrainA = "GrainOne", ColA = 2.0 },
+                new { GrainA = "GrainTwo", ColA = 1.0 },
+                new { GrainA = "GrainTwo", ColA = 2.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline, should error on fit and on GetOutputSchema
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1);
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA_Mean_Hor1_MinWin1_MaxWin1"];
+            var cursor = output.GetRowCursor(addedColumn);
+
+            var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { double.NaN }, new[] { 1d } };
             var index = 0;
             var getter = cursor.GetGetter<VBuffer<double>>(addedColumn);
 
