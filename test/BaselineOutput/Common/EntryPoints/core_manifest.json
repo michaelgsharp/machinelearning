@@ -23319,11 +23319,11 @@
           "IsNullable": false
         },
         {
-          "Name": "Horizon",
+          "Name": "MinPoints",
           "Type": "UInt",
-          "Desc": "Maximum horizon value",
+          "Desc": "Minimum number of values required",
           "Aliases": [
-            "hor"
+            "minp"
           ],
           "Required": true,
           "SortOrder": 1.0,
@@ -23336,44 +23336,6 @@
           "Desc": "Input dataset",
           "Required": true,
           "SortOrder": 1.0,
-          "IsNullable": false
-        },
-        {
-          "Name": "MaxWindowSize",
-          "Type": "UInt",
-          "Desc": "Maximum window size",
-          "Aliases": [
-            "maxsize"
-          ],
-          "Required": true,
-          "SortOrder": 2.0,
-          "IsNullable": false,
-          "Default": 0
-        },
-        {
-          "Name": "CrossValidations",
-          "Type": "UInt",
-          "Desc": "Number of cross validations being performed.",
-          "Aliases": [
-            "crossv"
-          ],
-          "Required": false,
-          "SortOrder": 2.0,
-          "IsNullable": false,
-          "Default": 0
-        },
-        {
-          "Name": "offsets",
-          "Type": {
-            "Kind": "Array",
-            "ItemType": "Int"
-          },
-          "Desc": "Lag and Lead offset to use. A negative number is a lag, positive is a lead",
-          "Aliases": [
-            "off"
-          ],
-          "Required": true,
-          "SortOrder": 3.0,
           "IsNullable": false
         }
       ],
