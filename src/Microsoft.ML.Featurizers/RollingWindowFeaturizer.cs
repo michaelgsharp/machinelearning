@@ -830,7 +830,7 @@ namespace Microsoft.ML.Featurizers
 
     internal static class RollingWindowEntrypoint
     {
-        [TlcModule.EntryPoint(Name = "Transforms.AnalyticalRollingWindow",
+        [TlcModule.EntryPoint(Name = "Transforms.RollingWindow",
             Desc = RollingWindowTransformer.Summary,
             UserName = RollingWindowTransformer.UserName,
             ShortName = RollingWindowTransformer.ShortName)]

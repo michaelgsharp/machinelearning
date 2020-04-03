@@ -60,7 +60,7 @@ namespace Microsoft.ML.RunTests
             {
                 'Nodes':
                 [{
-                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
                             'TargetColumn' : 'Target',
@@ -117,7 +117,7 @@ namespace Microsoft.ML.RunTests
             {
                 'Nodes':
                 [{
-                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
                             'TargetColumn' : 'Target',
@@ -176,7 +176,7 @@ namespace Microsoft.ML.RunTests
             {
                 'Nodes':
                 [{
-                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
                             'TargetColumn' : 'Target',
@@ -241,7 +241,7 @@ namespace Microsoft.ML.RunTests
             {
                 'Nodes':
                 [{
-                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
                             'TargetColumn' : 'Target',
@@ -307,7 +307,7 @@ namespace Microsoft.ML.RunTests
             {
                 'Nodes':
                 [{
-                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
                             'TargetColumn' : 'Target',
