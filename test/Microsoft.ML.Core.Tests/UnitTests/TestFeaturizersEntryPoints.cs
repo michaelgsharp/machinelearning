@@ -45,6 +45,63 @@ namespace Microsoft.ML.RunTests
         }
 
         [Fact]
+        public void AnalyticalRollingWindow_LargeNumberTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.AnalyticalRollingWindow',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'TargetColumn' : 'Target',
+                            'Data' : '$data',
+                            'Horizon': 2147483647,
+                            'MaxWindowSize' : 4294967294,
+                            'MinWindowSize' : 4294967294,
+                            'WindowCalculation' : 'Min'
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            var addedColumn = schema["Target_Min_Hor2147483647_MinWin4294967294_MaxWin4294967294"];
+            var columnType = addedColumn.Type as VectorDataViewType;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.NotNull(columnType);
+            Assert.True(columnType.IsKnownSize);
+            Assert.True(columnType.Dimensions.Length == 2);
+            Assert.True(columnType.Dimensions[0] == 1);
+            Assert.True(columnType.Dimensions[1] == 2147483647);
+            Assert.True(columnType.ItemType.RawType == typeof(double));
+        }
+
+        [Fact]
         public void AnalyticalRollingWindow_SimpleMeanTest()
         {
             MLContext mlContext = new MLContext(1);
@@ -330,6 +387,8 @@ namespace Microsoft.ML.RunTests
 
             var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
 
+            runner.SetInput("data", data);
+            runner.RunAll();
             // TODO: complete this test after lag lead is fully implemented
             Done();
         }
@@ -374,6 +433,62 @@ namespace Microsoft.ML.RunTests
         }
 
         [Fact]
+        public void ShortDrop_LargeNumberTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 },
+                new { Grain = "one", Target = 2.0 },
+                new { Grain = "one", Target = 3.0 },
+                new { Grain = "one", Target = 4.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.ShortDrop',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'Data' : '$data',
+                            'MinPoints' : 4294967294
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            // Output schema should equal input schema.
+            Assert.Equal(data.Schema, schema);
+            var debugView = output.Preview();
+            var rows = debugView.RowView;
+            var cols = debugView.ColumnView;
+
+            // Since min row count is 4294967294 and we only have 1, should have no rows back.
+            Assert.True(rows.Length == 0);
+
+            // Also make sure that the value column was dropped correctly.
+            Assert.True(cols[0].Values.Length == 0);
+            Assert.True(cols[1].Values.Length == 0);
+
+            Done();
+        }
+        [Fact]
         public void ShortDrop_EntryPointTest()
         {
             MLContext mlContext = new MLContext(1);
@@ -392,11 +507,8 @@ namespace Microsoft.ML.RunTests
                     'Name': 'Transforms.ShortDrop',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
-                            'Horizon': 1,
                             'Data' : '$data',
-                            'MaxWindowSize' : 3,
-                            'CrossValidations' : 2,
-                            'offsets' : [-3, 1]
+                            'MinPoints' : 2
                     },
                     'Outputs' : {
                         'OutputData': '$outputData',
@@ -411,7 +523,114 @@ namespace Microsoft.ML.RunTests
 
             var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
 
-            // TODO: complete this test after short grain dropper is fully implemented
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            Done();
+        }
+        [Fact]
+        public void ShortDrop_Drop()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1.0 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.ShortDrop',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'Data' : '$data',
+                            'MinPoints' : 2
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            // Output schema should equal input schema.
+            Assert.Equal(data.Schema, schema);
+            var debugView = output.Preview();
+            var rows = debugView.RowView;
+            var cols = debugView.ColumnView;
+
+            // Since min row count is 2 and we only have 1, should have no rows back.
+            Assert.True(rows.Length == 0);
+
+            // Also make sure that the value column was dropped correctly.
+            Assert.True(cols[0].Values.Length == 0);
+            Assert.True(cols[1].Values.Length == 0);
+
+            Done();
+        }
+        [Fact]
+        public void ShortDrop_Keep()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new { Grain = "one", Target = 1 },
+                new { Grain = "one", Target = 1 }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.ShortDrop',
+                    'Inputs': {
+                            'GrainColumns': ['Grain'],
+                            'Data' : '$data',
+                            'MinPoints' : 2
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            // Output schema should equal input schema.
+            Assert.Equal(data.Schema, schema);
+            var debugView = output.Preview();
+            var rows = debugView.RowView;
+            var cols = debugView.ColumnView;
+
+            // Since min row count is 2 and we have 2, should have all rows back.
+            Assert.True(rows.Length == 2);
+
+            // Also make sure that the value column was dropped correctly.
+            Assert.True(cols[0].Values.Length == 2);
+            Assert.True(cols[1].Values.Length == 2);
 
             Done();
         }
