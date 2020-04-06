@@ -43,6 +43,31 @@ namespace Microsoft.ML.RunTests
         {
             Env.ComponentCatalog.RegisterAssembly(typeof(RollingWindowEstimator).Assembly);
         }
+        private class SimpleRWTestData
+        {
+            public double ColA { get; set; }
+
+            [VectorType(1, 2)]
+            public double[] ColA_RW_Mean_MinWin1_MaxWin1 { get; set; }
+        }
+        private class SimpleLagLeadTestData
+        {
+            public double ColA { get; set; }
+
+            [VectorType(2, 2)]
+            public double[] ColA_Lag_1_Lead_1 { get; set; }
+        }
+
+        private class Horizon2LagLeadRWTestData
+        {
+            public double ColA { get; set; }
+
+            [VectorType(1, 2)]
+            public double[] ColA_RW_Mean_MinWin1_MaxWin1 { get; set; }
+
+            [VectorType(2, 2)]
+            public double[] ColA_Lag_1_Lead_1 { get; set; }
+        }
 
         [Fact]
         public void AnalyticalRollingWindow_LargeNumberTest()
@@ -89,7 +114,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Min_MinWin4294967294_MaxWin4294967294"];
+            var addedColumn = schema["Target_RW_Min_MinWin4294967294_MaxWin4294967294"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -146,7 +171,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Mean_MinWin1_MaxWin1"];
+            var addedColumn = schema["Target_RW_Mean_MinWin1_MaxWin1"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -205,7 +230,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Min_MinWin1_MaxWin1"];
+            var addedColumn = schema["Target_RW_Min_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -270,7 +295,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Max_MinWin1_MaxWin1"];
+            var addedColumn = schema["Target_RW_Max_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -336,7 +361,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Mean_MinWin2_MaxWin3"];
+            var addedColumn = schema["Target_RW_Mean_MinWin2_MaxWin3"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -394,14 +419,13 @@ namespace Microsoft.ML.RunTests
         }
 
         [Fact]
-        public void ForecastingPivot_EntryPointTest()
+        public void ForecastingPivot_SimpleRWTest()
         {
             MLContext mlContext = new MLContext(1);
             var dataList = new[] {
-                new { Grain = "one", Target = 1.0 },
-                new { Grain = "one", Target = 2.0 },
-                new { Grain = "one", Target = 3.0 },
-                new { Grain = "one", Target = 4.0 }
+                new SimpleRWTestData { ColA = 1.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { double.NaN, double.NaN } },
+                new SimpleRWTestData { ColA = 2.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { double.NaN, 1.0 } },
+                new SimpleRWTestData { ColA = 3.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { 1.0, 2.0 } }
             };
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
@@ -411,7 +435,7 @@ namespace Microsoft.ML.RunTests
                 [{
                     'Name': 'Transforms.ForecastingPivot',
                     'Inputs': {
-                            'ColumnsToPivot': ['Grain'],
+                            'ColumnsToPivot': ['ColA_RW_Mean_MinWin1_MaxWin1'],
                             'Data' : '$data'
                     },
                     'Outputs' : {
@@ -427,7 +451,240 @@ namespace Microsoft.ML.RunTests
 
             var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
 
-            // TODO: complete this test after forecasting pivot is fully implemented
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            var addedColumn = schema["ColA_RW_Mean_MinWin1_MaxWin1"];
+            var columnType = addedColumn.Type;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.NotNull(columnType);
+            Assert.True(columnType == NumberDataViewType.Double);
+
+            addedColumn = schema["Horizon"];
+            columnType = addedColumn.Type;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.NotNull(columnType);
+            Assert.True(columnType == NumberDataViewType.UInt32);
+
+            Done();
+        }
+
+        [Fact]
+        public void ForecastingPivot_SimpleLagLeadTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new SimpleLagLeadTestData { ColA = 1.0, ColA_Lag_1_Lead_1 = new [] { double.NaN, double.NaN, double.NaN, double.NaN } },
+                new SimpleLagLeadTestData { ColA = 2.0, ColA_Lag_1_Lead_1 = new [] { double.NaN, 1.0, double.NaN, 1.0 } },
+                new SimpleLagLeadTestData { ColA = 3.0, ColA_Lag_1_Lead_1 = new [] { 1.0, 2.0, 1.0, 2.0 } }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.ForecastingPivot',
+                    'Inputs': {
+                            'ColumnsToPivot': ['ColA_Lag_1_Lead_1'],
+                            'Data' : '$data'
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            //var index = 0;
+            var debugView = output.Preview();
+            var colA = debugView.ColumnView[0].Values;
+            var lagCol = debugView.ColumnView[2].Values;
+            var leadCol = debugView.ColumnView[3].Values;
+            var horizonCol = debugView.ColumnView[4].Values;
+
+            // Correct output for:
+            // ColA,    ColA_Lag_1, ColA_Lead_1,    Horizon
+            // 2.0,     1.0,        1.0,            1
+            // 3.0,     1.0,        1.0,            2
+            // 3.0,     2.0,        2.0,            1
+
+            Assert.True(leadCol.Length == 3);
+
+            // Make sure the values are correct.
+            Assert.Equal(2.0, colA[0]);
+            Assert.Equal(3.0, colA[1]);
+            Assert.Equal(3.0, colA[2]);
+
+            Assert.Equal(1.0, leadCol[0]);
+            Assert.Equal(1.0, leadCol[1]);
+            Assert.Equal(2.0, leadCol[2]);
+
+            Assert.Equal(1.0, lagCol[0]);
+            Assert.Equal(1.0, lagCol[1]);
+            Assert.Equal(2.0, lagCol[2]);
+
+            Assert.Equal((UInt32)1, horizonCol[0]);
+            Assert.Equal((UInt32)2, horizonCol[1]);
+            Assert.Equal((UInt32)1, horizonCol[2]);
+
+            Done();
+        }
+        [Fact]
+        public void ForecastingPivot_Horizon2RWTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new SimpleRWTestData { ColA = 1.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { double.NaN, double.NaN } },
+                new SimpleRWTestData { ColA = 2.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { double.NaN, 1.0 } },
+                new SimpleRWTestData { ColA = 3.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { 1.0, 2.0 } }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.ForecastingPivot',
+                    'Inputs': {
+                            'ColumnsToPivot': ['ColA_RW_Mean_MinWin1_MaxWin1'],
+                            'Data' : '$data'
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            //var index = 0;
+            var debugView = output.Preview();
+            var colA = debugView.ColumnView[0].Values;
+            var pivotCol = debugView.ColumnView[2].Values;
+            var horizonCol = debugView.ColumnView[3].Values;
+
+            // Correct output for:
+            // ColA,    ColA_RW_Mean_MinWin1_MaxWin1,  Horizon
+            // 2.0,     1.0,                        1
+            // 3.0,     1.0,                        2
+            // 3.0,     2.0,                        1
+
+            Assert.True(pivotCol.Length == 3);
+
+            // Make sure the values are correct.
+            Assert.Equal(2.0, colA[0]);
+            Assert.Equal(3.0, colA[1]);
+            Assert.Equal(3.0, colA[2]);
+
+            Assert.Equal(1.0, pivotCol[0]);
+            Assert.Equal(1.0, pivotCol[1]);
+            Assert.Equal(2.0, pivotCol[2]);
+
+            Assert.Equal((UInt32)1, horizonCol[0]);
+            Assert.Equal((UInt32)2, horizonCol[1]);
+            Assert.Equal((UInt32)1, horizonCol[2]);
+
+            Done();
+        }
+
+        [Fact]
+        public void ForecastingPivot_Horizon2LagLeadTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new Horizon2LagLeadRWTestData { ColA = 1.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { double.NaN, double.NaN }, ColA_Lag_1_Lead_1 = new [] { double.NaN, double.NaN, double.NaN, double.NaN } },
+                new Horizon2LagLeadRWTestData { ColA = 2.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { double.NaN, 1.0 }, ColA_Lag_1_Lead_1 = new [] { double.NaN, 1.0, double.NaN, 2.0 } },
+                new Horizon2LagLeadRWTestData { ColA = 3.0, ColA_RW_Mean_MinWin1_MaxWin1 = new [] { 1.0, 2.0 }, ColA_Lag_1_Lead_1 = new [] { 2.0, double.NaN, 3.0, double.NaN } }
+            };
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            string inputGraph = @"
+            {
+                'Nodes':
+                [{
+                    'Name': 'Transforms.ForecastingPivot',
+                    'Inputs': {
+                            'ColumnsToPivot': ['ColA_RW_Mean_MinWin1_MaxWin1', 'ColA_Lag_1_Lead_1'],
+                            'Data' : '$data'
+                    },
+                    'Outputs' : {
+                        'OutputData': '$outputData',
+                        'Model': '$Var_test'
+                    }
+                    }
+                ]
+            }
+            ";
+
+            JObject graph = JObject.Parse(inputGraph);
+
+            var runner = new GraphRunner(Env, graph[FieldNames.Nodes] as JArray);
+
+            runner.SetInput("data", data);
+            runner.RunAll();
+
+            var output = runner.GetOutput<IDataView>("outputData");
+            var schema = output.Schema;
+
+            //var index = 0;
+            var debugView = output.Preview();
+            var colA = debugView.ColumnView[0].Values;
+            var rollingWindowCol = debugView.ColumnView[3].Values;
+            var lagCol = debugView.ColumnView[4].Values;
+            var leadCol = debugView.ColumnView[5].Values;
+            var horizonCol = debugView.ColumnView[6].Values;
+
+            // Correct output for:
+            // ColA,    ColA_RW_Mean_MinWin1_MaxWin1,  ColA_Lag_1, ColA_Lead_1,    Horizon
+            // 2.0,     1.0,                        1.0,        2.0,            1
+            // 3.0,     1.0,                        2.0,        3.0,            2
+
+            Assert.True(colA.Length == 2);
+
+            // Make sure the values are correct.
+            Assert.Equal(2.0, colA[0]);
+            Assert.Equal(3.0, colA[1]);
+
+            Assert.Equal(1.0, rollingWindowCol[0]);
+            Assert.Equal(1.0, rollingWindowCol[1]);
+
+            Assert.Equal(1.0, lagCol[0]);
+            Assert.Equal(2.0, lagCol[1]);
+
+            Assert.Equal(2.0, leadCol[0]);
+            Assert.Equal(3.0, leadCol[1]);
+
+            Assert.Equal((UInt32)1, horizonCol[0]);
+            Assert.Equal((UInt32)2, horizonCol[1]);
 
             Done();
         }
