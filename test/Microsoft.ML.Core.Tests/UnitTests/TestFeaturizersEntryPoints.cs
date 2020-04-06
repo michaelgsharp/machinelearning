@@ -88,7 +88,7 @@ namespace Microsoft.ML.RunTests
                     'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
-                            'TargetColumn' : 'Target',
+                            'Column' : { 'Name' : 'Target_RW_Min_MinWin4294967294_MaxWin4294967294', 'Source' : 'Target' },
                             'Data' : '$data',
                             'Horizon': 2147483647,
                             'MaxWindowSize' : 4294967294,
@@ -124,6 +124,24 @@ namespace Microsoft.ML.RunTests
             Assert.True(columnType.Dimensions[0] == 1);
             Assert.True(columnType.Dimensions[1] == 2147483647);
             Assert.True(columnType.ItemType.RawType == typeof(double));
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Min", calculation.ToString());
+            Assert.Equal((UInt32)4294967294, minWindowSize);
+            Assert.Equal((UInt32)4294967294, maxWindowSize);
         }
 
         [Fact]
@@ -145,7 +163,7 @@ namespace Microsoft.ML.RunTests
                     'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
-                            'TargetColumn' : 'Target',
+                            'Column' : { 'Name' : 'Target_RW_Mean_MinWin1_MaxWin1', 'Source' : 'Target' },
                             'Data' : '$data',
                             'Horizon': 1,
                             'MaxWindowSize' : 1,
@@ -182,6 +200,24 @@ namespace Microsoft.ML.RunTests
             Assert.True(columnType.Dimensions[1] == 1);
             Assert.True(columnType.ItemType.RawType == typeof(double));
 
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Mean", calculation.ToString());
+            Assert.Equal((UInt32)1, minWindowSize);
+            Assert.Equal((UInt32)1, maxWindowSize);
+
             Done();
         }
 
@@ -204,7 +240,7 @@ namespace Microsoft.ML.RunTests
                     'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
-                            'TargetColumn' : 'Target',
+                            'Column' : { 'Name' : 'Target_RW_Min_MinWin1_MaxWin1', 'Source' : 'Target' },
                             'Data' : '$data',
                             'Horizon': 1,
                             'MaxWindowSize' : 1,
@@ -247,6 +283,25 @@ namespace Microsoft.ML.RunTests
                 Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Min", calculation.ToString());
+            Assert.Equal((UInt32)1, minWindowSize);
+            Assert.Equal((UInt32)1, maxWindowSize);
+
             Done();
         }
 
@@ -269,7 +324,7 @@ namespace Microsoft.ML.RunTests
                     'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
-                            'TargetColumn' : 'Target',
+                            'Column' : { 'Name' : 'Target_RW_Max_MinWin1_MaxWin1', 'Source' : 'Target' },
                             'Data' : '$data',
                             'Horizon': 1,
                             'MaxWindowSize' : 1,
@@ -313,6 +368,24 @@ namespace Microsoft.ML.RunTests
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
 
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Max", calculation.ToString());
+            Assert.Equal((UInt32)1, minWindowSize);
+            Assert.Equal((UInt32)1, maxWindowSize);
+
             Done();
         }
 
@@ -335,7 +408,7 @@ namespace Microsoft.ML.RunTests
                     'Name': 'Transforms.RollingWindow',
                     'Inputs': {
                             'GrainColumns': ['Grain'],
-                            'TargetColumn' : 'Target',
+                            'Column' : { 'Name' : 'Target_RW_Mean_MinWin2_MaxWin3', 'Source' : 'Target' },
                             'Data' : '$data',
                             'Horizon': 4,
                             'MaxWindowSize' : 3,
@@ -371,6 +444,24 @@ namespace Microsoft.ML.RunTests
             Assert.True(columnType.Dimensions[0] == 1);
             Assert.True(columnType.Dimensions[1] == 4);
             Assert.True(columnType.ItemType.RawType == typeof(double));
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Mean", calculation.ToString());
+            Assert.Equal((UInt32)2, minWindowSize);
+            Assert.Equal((UInt32)3, maxWindowSize);
 
             Done();
         }
