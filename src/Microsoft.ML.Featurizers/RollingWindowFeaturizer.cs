@@ -128,7 +128,7 @@ namespace Microsoft.ML.Featurizers
                 throw new InvalidOperationException($"Type {inputColumn.ItemType.RawType} for column {_options.TargetColumn} not a supported type.");
 
             // This is named like this so that the ForecastingPivotFeaturizer will know how to correctly name its columns.
-            var columnName = $"{_options.TargetColumn}_{Enum.GetName(typeof(RollingWindowCalculation), _options.WindowCalculation)}_MinWin{_options.MinWindowSize}_MaxWin{_options.MaxWindowSize}";
+            var columnName = $"{_options.TargetColumn}_RW_{Enum.GetName(typeof(RollingWindowCalculation), _options.WindowCalculation)}_MinWin{_options.MinWindowSize}_MaxWin{_options.MaxWindowSize}";
 
             columns[columnName] = new SchemaShape.Column(columnName, VectorKind.Vector,
                 NumberDataViewType.Double, false);
@@ -755,7 +755,7 @@ namespace Microsoft.ML.Featurizers
                 base(parent.Host.Register(nameof(Mapper)), inputSchema, parent)
             {
                 _parent = parent;
-                _outputColumnName = $"{_parent._options.TargetColumn}_{Enum.GetName(typeof(RollingWindowEstimator.RollingWindowCalculation), _parent._options.WindowCalculation)}_MinWin{_parent._options.MinWindowSize}_MaxWin{_parent._options.MaxWindowSize}";
+                _outputColumnName = $"{_parent._options.TargetColumn}_RW_{Enum.GetName(typeof(RollingWindowEstimator.RollingWindowCalculation), _parent._options.WindowCalculation)}_MinWin{_parent._options.MinWindowSize}_MaxWin{_parent._options.MaxWindowSize}";
             }
 
             protected override DataViewSchema.DetachedColumn[] GetOutputColumnsCore()

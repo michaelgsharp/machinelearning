@@ -50,7 +50,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_RW_Mean_MinWin1_MaxWin1"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -82,7 +82,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_MinWin2_MaxWin3"];
+            var addedColumn = schema["ColA_RW_Mean_MinWin2_MaxWin3"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -133,7 +133,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Min_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_RW_Min_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -173,7 +173,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Max_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_RW_Max_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -213,7 +213,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_RW_Mean_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -253,7 +253,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_RW_Mean_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { double.NaN }, new[] { 1d } };

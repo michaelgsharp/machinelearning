@@ -46,13 +46,13 @@ namespace Microsoft.ML.Tests.Transformers
 
             // Build the pipeline. Starting with RollingWindow since this depends on RollingWindow or LagLead.
             var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1).Append(
-                mlContext.Transforms.PivotForecastingData(new string[] { "ColA_Mean_MinWin1_MaxWin1" })
+                mlContext.Transforms.PivotForecastingData(new string[] { "ColA_RW_Mean_MinWin1_MaxWin1" })
             );
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_RW_Mean_MinWin1_MaxWin1"];
             var columnType = addedColumn.Type;
 
             // Make sure the type and schema of the column are correct.
@@ -83,7 +83,7 @@ namespace Microsoft.ML.Tests.Transformers
 
             // Build the pipeline
             var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 1, 1).Append(
-                mlContext.Transforms.PivotForecastingData(new string[] { "ColA_Mean_MinWin1_MaxWin1" })
+                mlContext.Transforms.PivotForecastingData(new string[] { "ColA_RW_Mean_MinWin1_MaxWin1" })
             );
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
