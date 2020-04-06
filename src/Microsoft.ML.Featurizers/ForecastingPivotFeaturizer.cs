@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.ML;
 using Microsoft.ML.CommandLine;
 using Microsoft.ML.Data;
@@ -106,10 +107,14 @@ namespace Microsoft.ML.Featurizers
                 // By this point the input column should have the correct format.
                 // Parse the input column name to figure out if its from rolling window or lag lead.
                 // If its from LagLead, new column TODO:
-                if (col.Contains("Offsets"))
+                if (col.Contains("Lag_") || col.Contains("Lead_"))
                 {
-                    //TODO: Add correct mapping logic here for LagLead
-                    columns[""] = new SchemaShape.Column("", VectorKind.Scalar, NumberDataViewType.Double, false);
+                    var originalSourceName = col.Split('_')[0];
+                    var offsets = Regex.Matches(col, @"Lag_\d*|Lead_\d*");
+                    foreach(var offset in offsets)
+                    {
+                        columns[$"{originalSourceName}_{offset}"] = new SchemaShape.Column($"{originalSourceName}_{offset}", VectorKind.Scalar, NumberDataViewType.Double, false);
+                    }
                 }
                 else
                 {
@@ -203,10 +208,14 @@ namespace Microsoft.ML.Featurizers
 
                 // By this point the input column should have the correct format.
                 // Parse the input column name to figure out if its from rolling window or lag lead.
-                if (col.Contains("Offsets"))
+                if (col.Contains("Lag_") || col.Contains("Lead_"))
                 {
-                    //TODO: Add correct mapping logic here for LagLead
-                    _newOutputColumnNames.Add("");
+                    var originalSourceName = col.Split('_')[0];
+                    var offsets = Regex.Matches(col, @"Lag_\d*|Lead_\d*");
+                    foreach (var offset in offsets)
+                    {
+                        _newOutputColumnNames.Add($"{originalSourceName}_{offset}");
+                    }
                 }
                 else
                 {

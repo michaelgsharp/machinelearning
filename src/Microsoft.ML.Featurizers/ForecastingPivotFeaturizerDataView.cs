@@ -11,6 +11,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.ML.Data;
 using Microsoft.ML.Featurizers;
 using Microsoft.ML.Internal.Utilities;
@@ -146,10 +147,14 @@ namespace Microsoft.ML.Transforms
 
                 foreach (var col in columnsToPivot)
                 {
-                    if (col.Contains("Offsets"))
+                    if (col.Contains("Lag_") || col.Contains("Lead_"))
                     {
-                        //TODO: Add correct mapping logic here for LagLead
-                        _pivotColumns[col] = new PivotColumn(input, col, 0);
+                        var originalSourceName = col.Split('_')[0];
+                        var offsets = Regex.Matches(col, @"Lag_\d*|Lead_\d*");
+                        for (int i = 0; i < offsets.Count; i++)
+                        {
+                            _pivotColumns[$"{originalSourceName}_{offsets[i]}"] = new PivotColumn(input, col, i);
+                        }
                     }
                     else
                     {
@@ -199,7 +204,7 @@ namespace Microsoft.ML.Transforms
 
                 var thisCol = _schema[column.Name];
 
-                if ((_pivotColumnNames.Contains(column.Name) && thisCol.Name == column.Name && thisCol.Type == column.Type) || column.Name == "Horizon")
+                if ((_pivotColumns.Keys.Contains(column.Name) && thisCol.Name == column.Name && thisCol.Type == column.Type) || column.Name == "Horizon")
                 {
                     if (column.Name == "Horizon")
                         return MakeHorizonGetter() as ValueGetter<TValue>;

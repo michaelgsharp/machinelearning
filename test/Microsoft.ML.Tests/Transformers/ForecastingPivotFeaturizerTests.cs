@@ -69,6 +69,53 @@ namespace Microsoft.ML.Tests.Transformers
             Done();
         }
 
+        private class SimpleLagLeadTestData
+        {
+            public double ColA { get; set; }
+
+            [VectorType(2, 2)]
+            public double[] ColA_Lag_1_Lead_1 { get; set; }
+        }
+
+        [Fact]
+        public void SimpleLagLeadSchemaTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new SimpleLagLeadTestData { ColA = 1.0, ColA_Lag_1_Lead_1 = new [] { double.NaN, double.NaN } },
+                new SimpleLagLeadTestData { ColA = 2.0, ColA_Lag_1_Lead_1 = new [] { double.NaN, 1.0 } },
+                new SimpleLagLeadTestData { ColA = 3.0, ColA_Lag_1_Lead_1 = new [] { 1.0, 2.0 } }
+            };
+
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline. Starting with RollingWindow since this depends on RollingWindow or LagLead.
+            var pipeline = mlContext.Transforms.PivotForecastingData(new string[] { "ColA_Lag_1_Lead_1" });
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            // 3 columns have been added.
+            // 1 Lag column, 1 Lead column, and 1 horizon column
+            var addedLagColumn = schema["ColA_Lag_1"];
+            var lagColumnType = addedLagColumn.Type;
+
+            var addedLeadColumn = schema["ColA_Lead_1"];
+            var leadColumnType = addedLeadColumn.Type;
+
+            var addedHorizonColumn = schema["Horizon"];
+            var horizonColumnType = addedHorizonColumn.Type;
+
+            // Make sure the type and schema of the column are correct.
+            Assert.True(lagColumnType == NumberDataViewType.Double);
+
+            Assert.True(leadColumnType == NumberDataViewType.Double);
+
+            Assert.True(horizonColumnType == NumberDataViewType.UInt32);
+
+            Done();
+        }
+
         [Fact]
         public void SimpleTest()
         {
@@ -104,8 +151,65 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.Equal((UInt32)1, horizonCol[0]);
             Assert.Equal((UInt32)1, horizonCol[1]);
 
+            TestEstimatorCore(pipeline, data);
             Done();
         }
+
+
+        [Fact]
+        public void SimpleLagLeadTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new SimpleLagLeadTestData { ColA = 1.0, ColA_Lag_1_Lead_1 = new [] { double.NaN, double.NaN, double.NaN, double.NaN } },
+                new SimpleLagLeadTestData { ColA = 2.0, ColA_Lag_1_Lead_1 = new [] { double.NaN, 1.0, double.NaN, 1.0 } },
+                new SimpleLagLeadTestData { ColA = 3.0, ColA_Lag_1_Lead_1 = new [] { 1.0, 2.0, 1.0, 2.0 } }
+            };
+
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline
+            var pipeline = mlContext.Transforms.PivotForecastingData(new string[] { "ColA_Lag_1_Lead_1" });
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            //var index = 0;
+            var debugView = output.Preview();
+            var colA = debugView.ColumnView[0].Values;
+            var lagCol = debugView.ColumnView[2].Values;
+            var leadCol = debugView.ColumnView[3].Values;
+            var horizonCol = debugView.ColumnView[4].Values;
+
+            // Correct output for:
+            // ColA,    ColA_Lag_1, ColA_Lead_1,    Horizon
+            // 2.0,     1.0,        1.0,            1
+            // 3.0,     1.0,        1.0,            2
+            // 3.0,     2.0,        2.0,            1
+
+            Assert.True(leadCol.Length == 3);
+
+            // Make sure the values are correct.
+            Assert.Equal(2.0, colA[0]);
+            Assert.Equal(3.0, colA[1]);
+            Assert.Equal(3.0, colA[2]);
+
+            Assert.Equal(1.0, leadCol[0]);
+            Assert.Equal(1.0, leadCol[1]);
+            Assert.Equal(2.0, leadCol[2]);
+
+            Assert.Equal(1.0, lagCol[0]);
+            Assert.Equal(1.0, lagCol[1]);
+            Assert.Equal(2.0, lagCol[2]);
+
+            Assert.Equal((UInt32)1, horizonCol[0]);
+            Assert.Equal((UInt32)2, horizonCol[1]);
+            Assert.Equal((UInt32)1, horizonCol[2]);
+
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
 
         [Fact]
         public void Horizon2IntegrationTest()
@@ -121,7 +225,7 @@ namespace Microsoft.ML.Tests.Transformers
 
             // Build the pipeline
             var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 2, 1).Append(
-                mlContext.Transforms.PivotForecastingData(new string[] { "ColA_Mean_MinWin1_MaxWin1" })
+                mlContext.Transforms.PivotForecastingData(new string[] { "ColA_RW_Mean_MinWin1_MaxWin1" })
             );
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
@@ -154,12 +258,14 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.Equal((UInt32)2, horizonCol[1]);
             Assert.Equal((UInt32)1, horizonCol[2]);
 
+            TestEstimatorCore(pipeline, data);
             Done();
         }
         
         private class Horizon2TestData
         {
             public double ColA { get; set; }
+
             [VectorType(1,2)]
             public double[] ColA_Mean_MinWin1_MaxWin1 { get; set; }
         }
@@ -173,10 +279,6 @@ namespace Microsoft.ML.Tests.Transformers
                 new Horizon2TestData { ColA = 2.0, ColA_Mean_MinWin1_MaxWin1 = new [] { double.NaN, 1.0 } },
                 new Horizon2TestData { ColA = 3.0, ColA_Mean_MinWin1_MaxWin1 = new [] { 1.0, 2.0 } }
             };
-
-            //ColA_LagLead_Offsets_-1,1,2,3
-            //ColA_Lag_1
-            //ColA_Lead_1
 
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
@@ -213,6 +315,71 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.Equal((UInt32)2, horizonCol[1]);
             Assert.Equal((UInt32)1, horizonCol[2]);
 
+            TestEstimatorCore(pipeline, data);
+            Done();
+        }
+
+        private class Horizon2LagLeadRWTestData
+        {
+            public double ColA { get; set; }
+
+            [VectorType(1,2)]
+            public double[] ColA_Mean_MinWin1_MaxWin1 { get; set; }
+
+            [VectorType(2,2)]
+            public double[] ColA_Lag_1_Lead_1 { get; set; }
+        }
+
+        [Fact]
+        public void Horizon2LagLeadRWTest()
+        {
+            MLContext mlContext = new MLContext(1);
+            var dataList = new[] {
+                new Horizon2LagLeadRWTestData { ColA = 1.0, ColA_Mean_MinWin1_MaxWin1 = new [] { double.NaN, double.NaN }, ColA_Lag_1_Lead_1 = new [] { double.NaN, double.NaN, double.NaN, double.NaN } },
+                new Horizon2LagLeadRWTestData { ColA = 2.0, ColA_Mean_MinWin1_MaxWin1 = new [] { double.NaN, 1.0 }, ColA_Lag_1_Lead_1 = new [] { double.NaN, 1.0, double.NaN, 2.0 } },
+                new Horizon2LagLeadRWTestData { ColA = 3.0, ColA_Mean_MinWin1_MaxWin1 = new [] { 1.0, 2.0 }, ColA_Lag_1_Lead_1 = new [] { 2.0, double.NaN, 3.0, double.NaN } }
+            };
+
+            var data = mlContext.Data.LoadFromEnumerable(dataList);
+
+            // Build the pipeline
+            var pipeline = mlContext.Transforms.PivotForecastingData(new string[] { "ColA_Mean_MinWin1_MaxWin1", "ColA_Lag_1_Lead_1" });
+            var model = pipeline.Fit(data);
+            var output = model.Transform(data);
+            var schema = output.Schema;
+
+            //var index = 0;
+            var debugView = output.Preview();
+            var colA = debugView.ColumnView[0].Values;
+            var rollingWindowCol = debugView.ColumnView[3].Values;
+            var lagCol = debugView.ColumnView[4].Values;
+            var leadCol = debugView.ColumnView[5].Values;
+            var horizonCol = debugView.ColumnView[6].Values;
+
+            // Correct output for:
+            // ColA,    ColA_Mean_MinWin1_MaxWin1,  ColA_Lag_1, ColA_Lead_1,    Horizon
+            // 2.0,     1.0,                        1.0,        2.0,            1
+            // 3.0,     1.0,                        2.0,        3.0,            2
+
+            Assert.True(colA.Length == 2);
+
+            // Make sure the values are correct.
+            Assert.Equal(2.0, colA[0]);
+            Assert.Equal(3.0, colA[1]);
+
+            Assert.Equal(1.0, rollingWindowCol[0]);
+            Assert.Equal(1.0, rollingWindowCol[1]);
+
+            Assert.Equal(1.0, lagCol[0]);
+            Assert.Equal(2.0, lagCol[1]);
+
+            Assert.Equal(2.0, leadCol[0]);
+            Assert.Equal(3.0, leadCol[1]);
+
+            Assert.Equal((UInt32)1, horizonCol[0]);
+            Assert.Equal((UInt32)2, horizonCol[1]);
+
+            TestEstimatorCore(pipeline, data);
             Done();
         }
 
