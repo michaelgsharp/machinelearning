@@ -127,10 +127,11 @@ namespace Microsoft.ML.Featurizers
             if (!RollingWindowTransformer.TypedColumn.IsColumnTypeSupported(inputColumn.ItemType.RawType))
                 throw new InvalidOperationException($"Type {inputColumn.ItemType.RawType} for column {_options.TargetColumn} not a supported type.");
 
-            var columnName = $"{_options.TargetColumn}_{Enum.GetName(typeof(RollingWindowCalculation), _options.WindowCalculation)}_Hor{_options.Horizon}_MinWin{_options.MinWindowSize}_MaxWin{_options.MaxWindowSize}";
+            // This is named like this so that the ForecastingPivotFeaturizer will know how to correctly name its columns.
+            var columnName = $"{_options.TargetColumn}_{Enum.GetName(typeof(RollingWindowCalculation), _options.WindowCalculation)}_MinWin{_options.MinWindowSize}_MaxWin{_options.MaxWindowSize}";
 
-            columns[_options.TargetColumn] = new SchemaShape.Column(columnName, VectorKind.Vector,
-                NumberDataViewType.Double, false, inputColumn.Annotations);
+            columns[columnName] = new SchemaShape.Column(columnName, VectorKind.Vector,
+                NumberDataViewType.Double, false);
 
             return new SchemaShape(columns.Values);
         }
@@ -270,23 +271,25 @@ namespace Microsoft.ML.Featurizers
         }
 
         #region Native Safe handle classes
-        internal delegate bool DestroyTransformedVectorDataNative(IntPtr handle, IntPtr itemSize, out IntPtr errorHandle);
+        internal delegate bool DestroyTransformedVectorDataNative(IntPtr columns, IntPtr rows, IntPtr items, out IntPtr errorHandle);
         internal class TransformedVectorDataSafeHandle : SafeHandleZeroOrMinusOneIsInvalid
         {
             private readonly DestroyTransformedVectorDataNative _destroyTransformedDataHandler;
-            private readonly IntPtr _itemSize;
+            private readonly IntPtr _columns;
+            private readonly IntPtr _rows;
 
-            public TransformedVectorDataSafeHandle(IntPtr handle, IntPtr itemSize, DestroyTransformedVectorDataNative destroyTransformedDataHandler) : base(true)
+            public TransformedVectorDataSafeHandle(IntPtr handle, IntPtr columns, IntPtr rows, DestroyTransformedVectorDataNative destroyTransformedDataHandler) : base(true)
             {
                 SetHandle(handle);
                 _destroyTransformedDataHandler = destroyTransformedDataHandler;
-                _itemSize = itemSize;
+                _columns = columns;
+                _rows = rows;
             }
 
             protected override bool ReleaseHandle()
             {
                 // Not sure what to do with error stuff here.  There shouldn't ever be one though.
-                var success = _destroyTransformedDataHandler(handle, _itemSize, out IntPtr errorHandle);
+                var success = _destroyTransformedDataHandler(_columns, _rows, handle, out IntPtr errorHandle);
                 return success;
             }
         }
@@ -548,28 +551,28 @@ namespace Microsoft.ML.Featurizers
             }
 
             [DllImport("Featurizers", EntryPoint = "AnalyticalRollingWindowFeaturizer_double_Transform", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr grainsArray, IntPtr grainsArraySize, double value, out double* output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr grainsArray, IntPtr grainsArraySize, double value, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
             internal unsafe override VBuffer<double> Transform(IntPtr grainsArray, IntPtr grainsArraySize, double input)
             {
-                var success = TransformDataNative(TransformerHandler, grainsArray, grainsArraySize, input, out double* output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(TransformerHandler, grainsArray, grainsArraySize, input, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
                 if (!success)
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                using var handler = new TransformedVectorDataSafeHandle(new IntPtr(output), outputSize, DestroyTransformedDataNative);
+                using var handler = new TransformedVectorDataSafeHandle(new IntPtr(output), outputCols, outputRows, DestroyTransformedDataNative);
 
-                var outputArray = new double[outputSize.ToInt32()];
+                var outputArray = new double[outputCols.ToInt32()];
 
-                for(int i = 0; i < outputSize.ToInt32(); i++)
+                for (int i = 0; i < outputCols.ToInt32(); i++)
                 {
                     outputArray[i] = *output++;
                 }
 
-                var buffer = new VBuffer<double>(outputSize.ToInt32(), outputArray);
+                var buffer = new VBuffer<double>(outputCols.ToInt32(), outputArray);
                 return buffer;
             }
 
             [DllImport("Featurizers", EntryPoint = "AnalyticalRollingWindowFeaturizer_double_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static unsafe extern bool DestroyTransformedDataNative(IntPtr items, IntPtr itemsSize, out IntPtr errorHandle);
+            private static unsafe extern bool DestroyTransformedDataNative(IntPtr columns, IntPtr rows, IntPtr items, out IntPtr errorHandle);
 
             private protected override bool CreateEstimatorHelper(out IntPtr estimator, out IntPtr errorHandle)
             {
@@ -661,28 +664,28 @@ namespace Microsoft.ML.Featurizers
             }
 
             [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_Transform", CallingConvention = CallingConvention.Cdecl), SuppressUnmanagedCodeSecurity]
-            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr grainsArray, IntPtr grainsArraySize, double value, out double* output, out IntPtr outputSize, out IntPtr errorHandle);
+            private static unsafe extern bool TransformDataNative(TransformerEstimatorSafeHandle transformer, IntPtr grainsArray, IntPtr grainsArraySize, double value, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
             internal unsafe override VBuffer<double> Transform(IntPtr grainsArray, IntPtr grainsArraySize, double input)
             {
-                var success = TransformDataNative(TransformerHandler, grainsArray, grainsArraySize, input, out double* output, out IntPtr outputSize, out IntPtr errorHandle);
+                var success = TransformDataNative(TransformerHandler, grainsArray, grainsArraySize, input, out IntPtr outputCols, out IntPtr outputRows, out double* output, out IntPtr errorHandle);
                 if (!success)
                     throw new Exception(GetErrorDetailsAndFreeNativeMemory(errorHandle));
 
-                using var handler = new TransformedVectorDataSafeHandle(new IntPtr(output), outputSize, DestroyTransformedDataNative);
+                using var handler = new TransformedVectorDataSafeHandle(new IntPtr(output), outputCols, outputRows, DestroyTransformedDataNative);
 
-                var outputArray = new double[outputSize.ToInt32()];
+                var outputArray = new double[outputCols.ToInt32()];
 
-                for(int i = 0; i < outputSize.ToInt32(); i++)
+                for(int i = 0; i < outputCols.ToInt32(); i++)
                 {
                     outputArray[i] = *output++;
                 }
 
-                var buffer = new VBuffer<double>(outputSize.ToInt32(), outputArray);
+                var buffer = new VBuffer<double>(outputCols.ToInt32(), outputArray);
                 return buffer;
             }
 
             [DllImport("Featurizers", EntryPoint = "SimpleRollingWindowFeaturizer_double_DestroyTransformedData"), SuppressUnmanagedCodeSecurity]
-            private static unsafe extern bool DestroyTransformedDataNative(IntPtr items, IntPtr itemsSize, out IntPtr errorHandle);
+            private static unsafe extern bool DestroyTransformedDataNative(IntPtr columns, IntPtr rows, IntPtr items, out IntPtr errorHandle);
 
             private protected override bool CreateEstimatorHelper(out IntPtr estimator, out IntPtr errorHandle)
             {
@@ -752,7 +755,7 @@ namespace Microsoft.ML.Featurizers
                 base(parent.Host.Register(nameof(Mapper)), inputSchema, parent)
             {
                 _parent = parent;
-                _outputColumnName = $"{_parent._options.TargetColumn}_{Enum.GetName(typeof(RollingWindowEstimator.RollingWindowCalculation), _parent._options.WindowCalculation)}_Hor{_parent._options.Horizon}_MinWin{_parent._options.MinWindowSize}_MaxWin{_parent._options.MaxWindowSize}";
+                _outputColumnName = $"{_parent._options.TargetColumn}_{Enum.GetName(typeof(RollingWindowEstimator.RollingWindowCalculation), _parent._options.WindowCalculation)}_MinWin{_parent._options.MinWindowSize}_MaxWin{_parent._options.MaxWindowSize}";
             }
 
             protected override DataViewSchema.DetachedColumn[] GetOutputColumnsCore()

@@ -20414,7 +20414,7 @@
           "Default": 0
         },
         {
-          "Name": "offsets",
+          "Name": "Offsets",
           "Type": {
             "Kind": "Array",
             "ItemType": "Int"

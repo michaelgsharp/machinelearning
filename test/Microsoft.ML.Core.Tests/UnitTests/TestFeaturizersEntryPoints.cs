@@ -89,7 +89,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Min_Hor2147483647_MinWin4294967294_MaxWin4294967294"];
+            var addedColumn = schema["Target_Min_MinWin4294967294_MaxWin4294967294"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -146,7 +146,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Mean_Hor1_MinWin1_MaxWin1"];
+            var addedColumn = schema["Target_Mean_MinWin1_MaxWin1"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -205,7 +205,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Min_Hor1_MinWin1_MaxWin1"];
+            var addedColumn = schema["Target_Min_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -270,7 +270,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Max_Hor1_MinWin1_MaxWin1"];
+            var addedColumn = schema["Target_Max_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -336,7 +336,7 @@ namespace Microsoft.ML.RunTests
             var output = runner.GetOutput<IDataView>("outputData");
             var schema = output.Schema;
 
-            var addedColumn = schema["Target_Mean_Hor4_MinWin2_MaxWin3"];
+            var addedColumn = schema["Target_Mean_MinWin2_MaxWin3"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -372,7 +372,7 @@ namespace Microsoft.ML.RunTests
                             'TargetColumn' : 'Target',
                             'Data' : '$data',
                             'Horizon': 1,
-                            'offsets' : [-3, 1]
+                            'Offsets' : [-3, 1]
                     },
                     'Outputs' : {
                         'OutputData': '$outputData',

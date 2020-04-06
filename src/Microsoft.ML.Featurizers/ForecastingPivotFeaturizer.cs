@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -14,6 +15,7 @@ using Microsoft.ML.Internal.Utilities;
 using Microsoft.ML.Runtime;
 using Microsoft.ML.Transforms;
 using static Microsoft.ML.Featurizers.CommonExtensions;
+using static Microsoft.ML.SchemaShape.Column;
 
 [assembly: LoadableClass(typeof(ForecastingPivotTransformer), null, typeof(SignatureLoadModel),
     ForecastingPivotTransformer.UserName, ForecastingPivotTransformer.LoaderSignature)]
@@ -78,10 +80,45 @@ namespace Microsoft.ML.Featurizers
 
         public SchemaShape GetOutputSchema(SchemaShape inputSchema)
         {
-            // One new column is added per ColumnsToPivot passed in.
-            // Rows are also added
-            //TODO: Add correct mapping logic here.
-            return inputSchema;
+            // A horizon column is always added to the schema.
+            // Additionally, the number of the other new columns added is equal to the sum of Dimension[0] for each input column.
+
+            var columns = inputSchema.ToDictionary(x => x.Name);
+
+            columns["Horizon"] = new SchemaShape.Column("Horizon", VectorKind.Scalar, NumberDataViewType.UInt32, false);
+
+            // Make sure all ColumnsToPivot are vectors of type double and the same number of columns.
+            // Make new columns based on parsing the input column names.
+            foreach (var col in _options.ColumnsToPivot)
+            {
+                // Make sure the column exists
+                var found = inputSchema.TryFindColumn(col, out SchemaShape.Column column);
+                if(!found)
+                    throw new InvalidOperationException($"Pivot column {col} not found in input");
+
+                var colType = column.ItemType;
+                if(column.Kind != VectorKind.Vector)
+                    throw new InvalidOperationException($"Pivot column {col} must be a vector");
+
+                if(column.ItemType != NumberDataViewType.Double)
+                    throw new InvalidOperationException($"Pivot column {col} must be a vector of type double");
+
+                // By this point the input column should have the correct format.
+                // Parse the input column name to figure out if its from rolling window or lag lead.
+                // If its from LagLead, new column TODO:
+                if (col.Contains("Offsets"))
+                {
+                    //TODO: Add correct mapping logic here for LagLead
+                    columns[""] = new SchemaShape.Column("", VectorKind.Scalar, NumberDataViewType.Double, false);
+                }
+                else
+                {
+                    // If its from rolling window, hide original column.
+                    columns[col] = new SchemaShape.Column(col, VectorKind.Scalar, NumberDataViewType.Double, false);
+                }
+            }
+
+            return new SchemaShape(columns.Values);
         }
     }
 
@@ -97,6 +134,7 @@ namespace Microsoft.ML.Featurizers
 
         private readonly IHost _host;
         private readonly ForecastingPivotFeaturizerEstimator.Options _options;
+        private List<string> _newOutputColumnNames;
 
         #endregion
 
@@ -105,6 +143,8 @@ namespace Microsoft.ML.Featurizers
         {
             _host = host.Register(nameof(ForecastingPivotTransformer));
             _options = options;
+
+            GenerateOutputColumnNames(true, input);
         }
 
         // Factory method for SignatureLoadModel.
@@ -119,6 +159,61 @@ namespace Microsoft.ML.Featurizers
             var pivotColumns = new string[ctx.Reader.ReadInt32()];
             for (int i = 0; i < pivotColumns.Length; i++)
                 pivotColumns[i] = ctx.Reader.ReadString();
+
+            _options = new ForecastingPivotFeaturizerEstimator.Options
+            {
+                ColumnsToPivot = pivotColumns
+            };
+
+            GenerateOutputColumnNames(false, null);
+        }
+
+        // Dont need to validate when transformer is being loaded. Only when its being created from fit.
+        // If validate is false, then input will not be checked.
+        private void GenerateOutputColumnNames(bool validate, IDataView input)
+        {
+            _newOutputColumnNames = new List<string>();
+
+            // Only used if validate is true, but needs to be declared.
+            ImmutableArray<int>? dimensionsToMatch = default;
+            if (validate)
+            {
+                var firstCol = input.Schema[_options.ColumnsToPivot[0]];
+                dimensionsToMatch = (firstCol.Type as VectorDataViewType)?.Dimensions;
+            }
+
+            foreach (var col in _options.ColumnsToPivot)
+            {
+                if (validate)
+                {
+                    var inputSchema = input.Schema;
+                    // Make sure the column exists
+                    var column = inputSchema[col];
+
+                    var colType = column.Type as VectorDataViewType;
+                    if (colType == null)
+                        throw new InvalidOperationException($"Pivot column {col} must be a vector");
+
+                    if (colType.RawType != typeof(VBuffer<double>))
+                        throw new InvalidOperationException($"Pivot column {col} must be a vector of type double");
+
+                    if (colType.Dimensions.Length != dimensionsToMatch.Value.Length || colType.Dimensions[1] != dimensionsToMatch.Value[1])
+                        throw new InvalidOperationException($"All columns must have the same number of dimensions and the second dimension must be the same size.");
+                }
+
+                // By this point the input column should have the correct format.
+                // Parse the input column name to figure out if its from rolling window or lag lead.
+                if (col.Contains("Offsets"))
+                {
+                    //TODO: Add correct mapping logic here for LagLead
+                    _newOutputColumnNames.Add("");
+                }
+                else
+                {
+                    // If its from rolling window, hide original column.
+                    _newOutputColumnNames.Add(col);
+                }
+            }
         }
 
         // Factory method for SignatureLoadDataTransform.
@@ -131,10 +226,19 @@ namespace Microsoft.ML.Featurizers
 
         public DataViewSchema GetOutputSchema(DataViewSchema inputSchema)
         {
-            // One new column is added per ColumnsToPivot passed in.
-            // Rows are also added
-            //TODO: Add correct mapping logic here.
-            return inputSchema;
+            var columns = inputSchema.ToDictionary(x => x.Name);
+            var schemaBuilder = new DataViewSchema.Builder();
+            schemaBuilder.AddColumns(inputSchema.AsEnumerable());
+
+            foreach(var newColName in _newOutputColumnNames)
+            {
+                schemaBuilder.AddColumn(newColName, NumberDataViewType.Double);
+            }
+
+            // Will always add a Horizon columns
+            schemaBuilder.AddColumn("Horizon", NumberDataViewType.UInt32);
+
+            return schemaBuilder.ToSchema();
         }
 
         public IRowToRowMapper GetRowToRowMapper(DataViewSchema inputSchema) => throw new InvalidOperationException("Not a RowToRowMapper.");

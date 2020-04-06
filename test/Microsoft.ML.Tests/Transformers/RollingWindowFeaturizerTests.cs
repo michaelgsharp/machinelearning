@@ -50,7 +50,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_Hor1_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_Mean_MinWin1_MaxWin1"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -82,7 +82,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_Hor4_MinWin2_MaxWin3"];
+            var addedColumn = schema["ColA_Mean_MinWin2_MaxWin3"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -97,7 +97,7 @@ namespace Microsoft.ML.Tests.Transformers
         }
 
         [Fact]
-        public void ConstructorParamterTest() {
+        public void ConstructorParameterTest() {
             MLContext mlContext = new MLContext(1);
             var dataList = new[] {
                 new { GrainA = "Grain", ColA = 1.0 }
@@ -133,7 +133,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Min_Hor1_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_Min_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -151,8 +151,7 @@ namespace Microsoft.ML.Tests.Transformers
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
 
-            // TODO: Uncomment when featurizer fixed.
-            //TestEstimatorCore(pipeline, data);
+            TestEstimatorCore(pipeline, data);
             Done();
         }
 
@@ -174,7 +173,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Max_Hor1_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_Max_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -192,8 +191,7 @@ namespace Microsoft.ML.Tests.Transformers
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
 
-            // TODO: Uncomment when featurizer fixed.
-            //TestEstimatorCore(pipeline, data);
+            TestEstimatorCore(pipeline, data);
             Done();
         }
 
@@ -215,7 +213,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_Hor1_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_Mean_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -233,8 +231,7 @@ namespace Microsoft.ML.Tests.Transformers
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
 
-            // TODO: Uncomment when featurizer fixed.
-            //TestEstimatorCore(pipeline, data);
+            TestEstimatorCore(pipeline, data);
             Done();
         }
 
@@ -256,7 +253,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_Mean_Hor1_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA_Mean_MinWin1_MaxWin1"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { double.NaN }, new[] { 1d } };
@@ -274,8 +271,7 @@ namespace Microsoft.ML.Tests.Transformers
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
 
-            // TODO: Uncomment when featurizer fixed.
-            //TestEstimatorCore(pipeline, data);
+            TestEstimatorCore(pipeline, data);
             Done();
         }
     }

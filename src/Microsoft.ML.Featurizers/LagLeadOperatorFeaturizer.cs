@@ -69,7 +69,7 @@ namespace Microsoft.ML.Featurizers
             public UInt32 Horizon;
 
             [Argument(ArgumentType.Multiple | ArgumentType.Required, HelpText = "Lag and Lead offset to use. A negative number is a lag, positive is a lead",
-                Name = "offsets", ShortName = "off", SortOrder = 3)]
+                Name = "Offsets", ShortName = "off", SortOrder = 3)]
             public long[] Offsets;
         }
 

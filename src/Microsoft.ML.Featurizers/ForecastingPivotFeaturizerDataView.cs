@@ -41,10 +41,7 @@ namespace Microsoft.ML.Transforms
             _columnsToPivot = columnsToPivot;
             _parent = parent;
 
-            // One new column is added per ColumnsToPivot passed in.
-            // Rows are also added
-            //TODO: Add correct mapping logic here.
-            _schema = _source.Schema;
+            _schema = _parent.GetOutputSchema(input.Schema);
         }
 
         public bool CanShuffle => false;
@@ -79,31 +76,28 @@ namespace Microsoft.ML.Transforms
             {
                 private ValueGetter<VBuffer<double>> _getter;
                 private VBuffer<double> _curValues;
-                private ImmutableArray<int> _dimensions;
 
-                private int _curRow;
+                private readonly int _row;
                 private int _curCol;
 
-                public PivotColumn(DataViewRowCursor input, string columnName)
+                public PivotColumn(DataViewRowCursor input, string sourceColumnName, int row)
                 {
-                    _getter = input.GetGetter<VBuffer<double>>(input.Schema[columnName]);
+                    _getter = input.GetGetter<VBuffer<double>>(input.Schema[sourceColumnName]);
                     _curValues = default;
-                    _dimensions = ((VectorDataViewType)(input.Schema[columnName].Type)).Dimensions;
-                    ColumnCount = _dimensions[1];
 
-                    _curRow = 0;
+                    var dimensions = ((VectorDataViewType)(input.Schema[sourceColumnName].Type)).Dimensions;
+                    ColumnCount = dimensions[1];
+
+                    _row = row;
                     _curCol = 0;
                 }
 
-                public int RowCount => _dimensions[0];
-
                 public int ColumnCount { get; private set; }
 
-                public double GetValueAndSetRowColumn(int row, int col)
+                public double GetValueAndSetColumn(int col)
                 {
-                    _curRow = row;
                     _curCol = col;
-                    return GetValue(_curRow, _curCol);
+                    return GetValue(_curCol);
                 }
 
                 public void MoveNext()
@@ -111,14 +105,14 @@ namespace Microsoft.ML.Transforms
                     _getter(ref _curValues);
                 }
 
-                private double GetValue(int row, int col)
+                private double GetValue(int col)
                 {
-                    return _curValues.GetItemOrDefault((row * ColumnCount) + col);
+                    return _curValues.GetItemOrDefault((_row * ColumnCount) + col);
                 }
 
                 public double GetStoredValue()
                 {
-                    return GetValue(_curRow, _curCol);
+                    return GetValue(_curCol);
                 }
             }
 
@@ -126,19 +120,20 @@ namespace Microsoft.ML.Transforms
             private DataViewRowCursor _input;
             private long _position;
             private bool _isGood;
-            private readonly string[] _columnsToPivot;
+            private readonly string[] _pivotColumnNames;
             private readonly DataViewSchema _schema;
 
             private Dictionary<string, PivotColumn> _pivotColumns;
-            private readonly int _maxCols;
+            private readonly UInt32 _maxCols;
             private int _currentCol;
+            private UInt32 _currentHorizon;
 
             public Cursor(IChannelProvider provider, DataViewRowCursor input, string[] columnsToPivot, DataViewSchema schema)
             {
                 _ch = provider;
                 _ch.CheckValue(input, nameof(input));
 
-                // Start is good at true. This is not exposed outside of the class.
+                // Start isGood at true. This is not exposed outside of the class.
                 _isGood = true;
                 _input = input;
                 _position = -1;
@@ -147,15 +142,31 @@ namespace Microsoft.ML.Transforms
                 _pivotColumns = new Dictionary<string, PivotColumn>();
                 _currentCol = -1;
 
-                _columnsToPivot = columnsToPivot;
+                var pivotNames = new List<string>();
 
                 foreach (var col in columnsToPivot)
                 {
-                    _pivotColumns[col] = new PivotColumn(input, col);
+                    if (col.Contains("Offsets"))
+                    {
+                        //TODO: Add correct mapping logic here for LagLead
+                        _pivotColumns[col] = new PivotColumn(input, col, 0);
+                    }
+                    else
+                    {
+                        // Rolling window is always row 0.
+                        pivotNames.Add(col);
+                        _pivotColumns[col] = new PivotColumn(input, col, 0);
+                    }
                 }
 
+                _pivotColumnNames = pivotNames.ToArray();
+
                 // All columns should have the same amount of slots in the vector
-                _maxCols = _pivotColumns.First().Value.ColumnCount;
+                _maxCols = (UInt32)_pivotColumns.First().Value.ColumnCount;
+
+                // The horizon starts with the _maxCols + 1 amount and decreases until 1, when it is reset back to this value.
+                // The reason it is + 1 is because maxCols is 0 to N, where horizon is 1 to N + 1.
+                _currentHorizon = _maxCols + 1;
             }
 
             public sealed override ValueGetter<DataViewRowId> GetIdGetter()
@@ -186,9 +197,14 @@ namespace Microsoft.ML.Transforms
             {
                 _ch.Check(IsColumnActive(column));
 
-                if (_columnsToPivot.Contains(column.Name))
+                var thisCol = _schema[column.Name];
+
+                if ((_pivotColumnNames.Contains(column.Name) && thisCol.Name == column.Name && thisCol.Type == column.Type) || column.Name == "Horizon")
                 {
-                    return MakeGetter(_input, column) as ValueGetter<TValue>;
+                    if (column.Name == "Horizon")
+                        return MakeHorizonGetter() as ValueGetter<TValue>;
+                    else
+                        return MakePivotGetter(column) as ValueGetter<TValue>;
                 }
                 else
                 {
@@ -201,39 +217,45 @@ namespace Microsoft.ML.Transforms
                 bool exitLoop = false;
                 while (_isGood && !exitLoop)
                 {
-                    // Make sure that we advance our source pointer if necesary.
+                    // If we haven't done anything yet or we are at the end of a row, advance our source pointer.
+                    // We also need to reset _curHorizon to its max value here.
                     if (_currentCol == _maxCols || _currentCol == -1)
+                    {
+                        // Advance source coursor and break if no more data.
                         _isGood = _input.MoveNext();
+                        if (!_isGood)
+                            break;
 
-                    if (!_isGood)
-                        break;
+                        _currentHorizon = _maxCols + 1;
+                        _currentCol = 0;
+                        foreach (var column in _pivotColumns.Values)
+                        {
+                            column.MoveNext();
+                        }
+                    }
 
                     for (int col = _currentCol; col < _maxCols; col++)
                     {
                         var nanFound = false;
 
-                        foreach (var column in _pivotColumns)
+                        foreach (var column in _pivotColumns.Values)
                         {
-                            for (int row = 0; row < column.Value.RowCount; row++)
+                            if (double.IsNaN(column.GetValueAndSetColumn(col)))
                             {
-                                if (double.IsNaN(column.Value.GetValueAndSetRowColumn(row, col)))
-                                {
-                                    nanFound = true;
-                                    break;
-                                }
-                            }
-
-                            if (nanFound)
+                                nanFound = true;
                                 break;
+                            }
                         }
 
                         // Break from loop because we now have valid values
                         // Update the _currentCol so we start from the correct place next time.
+                        // Decrease currentHorizon by 1.
                         // Update our current position.
+                        _currentHorizon -= 1;
+                        _currentCol = col + 1;
                         if (!nanFound)
                         {
                             exitLoop = true;
-                            _currentCol = col + 1;
                             _position++;
                             break;
                         }
@@ -247,10 +269,8 @@ namespace Microsoft.ML.Transforms
 
             public sealed override long Batch => _input.Batch;
 
-            private Delegate MakeGetter(DataViewRow input, DataViewSchema.Column column)
+            private Delegate MakePivotGetter(DataViewSchema.Column column)
             {
-                // TODO: wrapper
-
                 ValueGetter<double> result = (ref double dst) => {
                     dst = _pivotColumns[column.Name].GetStoredValue();
                 };
@@ -258,6 +278,14 @@ namespace Microsoft.ML.Transforms
                 return result;
             }
 
+            private Delegate MakeHorizonGetter()
+            {
+                ValueGetter<UInt32> result = (ref UInt32 dst) => {
+                    dst = _currentHorizon;
+                };
+
+                return result;
+            }
         }
     }
 }
