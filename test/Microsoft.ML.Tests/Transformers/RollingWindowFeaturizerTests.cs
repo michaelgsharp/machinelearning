@@ -50,7 +50,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_RW_Mean_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -60,6 +60,24 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 1);
             Assert.True(columnType.Dimensions[1] == 1);
             Assert.True(columnType.ItemType.RawType == typeof(double));
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Mean", calculation.ToString());
+            Assert.Equal((UInt32)1, minWindowSize);
+            Assert.Equal((UInt32)1, maxWindowSize);
 
             Done();
         }
@@ -77,12 +95,12 @@ namespace Microsoft.ML.Tests.Transformers
             var data = mlContext.Data.LoadFromEnumerable(dataList);
 
             // Build the pipeline, should error on fit and on GetOutputSchema
-            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "ColA", RollingWindowEstimator.RollingWindowCalculation.Mean, 4, 3, 2);
+            var pipeline = mlContext.Transforms.RollingWindow(new string[] { "GrainA" }, "NewInputColumn", RollingWindowEstimator.RollingWindowCalculation.Mean, 4, 3, 2, "ColA");
             var model = pipeline.Fit(data);
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_RW_Mean_MinWin2_MaxWin3"];
+            var addedColumn = schema["NewInputColumn"];
             var columnType = addedColumn.Type as VectorDataViewType;
 
             // Make sure the type and schema of the column are correct.
@@ -92,6 +110,24 @@ namespace Microsoft.ML.Tests.Transformers
             Assert.True(columnType.Dimensions[0] == 1);
             Assert.True(columnType.Dimensions[1] == 4);
             Assert.True(columnType.ItemType.RawType == typeof(double));
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Mean", calculation.ToString());
+            Assert.Equal((UInt32)2, minWindowSize);
+            Assert.Equal((UInt32)3, maxWindowSize);
 
             Done();
         }
@@ -133,7 +169,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_RW_Min_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -150,6 +186,24 @@ namespace Microsoft.ML.Tests.Transformers
                 Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Min", calculation.ToString());
+            Assert.Equal((UInt32)1, minWindowSize);
+            Assert.Equal((UInt32)1, maxWindowSize);
 
             TestEstimatorCore(pipeline, data);
             Done();
@@ -173,7 +227,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_RW_Max_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -190,6 +244,24 @@ namespace Microsoft.ML.Tests.Transformers
                 Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Max", calculation.ToString());
+            Assert.Equal((UInt32)1, minWindowSize);
+            Assert.Equal((UInt32)1, maxWindowSize);
 
             TestEstimatorCore(pipeline, data);
             Done();
@@ -213,7 +285,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_RW_Mean_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { 2d }, new[] { 3d } };
@@ -230,6 +302,24 @@ namespace Microsoft.ML.Tests.Transformers
                 Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Mean", calculation.ToString());
+            Assert.Equal((UInt32)1, minWindowSize);
+            Assert.Equal((UInt32)1, maxWindowSize);
 
             TestEstimatorCore(pipeline, data);
             Done();
@@ -253,7 +343,7 @@ namespace Microsoft.ML.Tests.Transformers
             var output = model.Transform(data);
             var schema = output.Schema;
 
-            var addedColumn = schema["ColA_RW_Mean_MinWin1_MaxWin1"];
+            var addedColumn = schema["ColA"];
             var cursor = output.GetRowCursor(addedColumn);
 
             var expectedOutput = new[] { new[] { double.NaN }, new[] { 1d }, new[] { double.NaN }, new[] { 1d } };
@@ -270,6 +360,24 @@ namespace Microsoft.ML.Tests.Transformers
                 Assert.Equal(expectedOutput[index].Length, bufferValues.Length);
                 Assert.Equal(expectedOutput[index++][0], bufferValues[0]);
             }
+
+            // Verify annotations are correct.
+            ReadOnlyMemory<char> featurizerName = default;
+            ReadOnlyMemory<char> calculation = default;
+            UInt32 minWindowSize = default;
+            UInt32 maxWindowSize = default;
+
+            var annotations = addedColumn.Annotations;
+
+            annotations.GetValue<ReadOnlyMemory<char>>("FeaturizerName", ref featurizerName);
+            annotations.GetValue<ReadOnlyMemory<char>>("Calculation", ref calculation);
+            annotations.GetValue<UInt32>("MinWindowSize", ref minWindowSize);
+            annotations.GetValue<UInt32>("MaxWindowSize", ref maxWindowSize);
+
+            Assert.Equal("RollingWindow", featurizerName.ToString());
+            Assert.Equal("Mean", calculation.ToString());
+            Assert.Equal((UInt32)1, minWindowSize);
+            Assert.Equal((UInt32)1, maxWindowSize);
 
             TestEstimatorCore(pipeline, data);
             Done();
