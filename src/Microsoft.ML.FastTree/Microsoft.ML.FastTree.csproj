@@ -7,6 +7,7 @@
     <PackageDescription>ML.NET component for FastTree</PackageDescription>
     <DefineConstants>$(DefineConstants);USE_FASTTREENATIVE;NO_STORE;CORECLR</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,5 +27,12 @@
   <ItemGroup>
     <Content Include="$(RepoRoot)eng\pkg\CommonPackage.props" Pack="true" PackagePath="build\netstandard2.0\$(MSBuildProjectName).props" />
   </ItemGroup>
+
+  <Target DependsOnTargets="ResolveReferences" Name="CopyProjectReferencesToPackage">
+    <ItemGroup>
+      <!--Include native PDBs-->
+      <BuildOutputInPackage Include="$(PackageAssetsPath)$(PackageIdFolderName)\runtimes\**\*.pdb" TargetPath="..\..\runtimes\$(PackageRid)\native"/>
+    </ItemGroup>
+  </Target>
 
 </Project>

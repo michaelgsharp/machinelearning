@@ -7,6 +7,7 @@
     <PackageDescription>Microsoft.ML.CpuMath contains optimized math routines for ML.NET.</PackageDescription>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>$(DefineConstants);CPUMATH_INFRASTRUCTURE</DefineConstants>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,5 +37,12 @@
   <ItemGroup>
     <Content Include="build\**\*" Pack="true" PackagePath="build" />
   </ItemGroup>
+
+  <Target DependsOnTargets="ResolveReferences" Name="CopyProjectReferencesToPackage">
+    <ItemGroup Condition="'$(TargetFramework)' != 'netcoreapp3.1'">
+      <!--Include native PDBs-->
+      <BuildOutputInPackage Include="$(PackageAssetsPath)$(PackageIdFolderName)\runtimes\**\*.pdb" TargetPath="..\..\runtimes\$(PackageRid)\native" />
+    </ItemGroup>
+  </Target>
 
 </Project>

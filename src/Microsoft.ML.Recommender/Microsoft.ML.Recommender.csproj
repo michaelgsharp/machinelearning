@@ -6,6 +6,7 @@
     <IncludeInPackage>Microsoft.ML.Recommender</IncludeInPackage>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageDescription>LIBMF, the core computation library for matrix factorization in ML.NET</PackageDescription>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,5 +24,12 @@
     <Content Include="$(RepoRoot)eng\pkg\CommonPackage.props" Pack="true" PackagePath="build\netstandard2.0\$(MSBuildProjectName).props" />
     <Content Include="$(RepoRoot)src\Native\MatrixFactorizationNative\libmf\COPYRIGHT" Pack="true" PackagePath="" />
   </ItemGroup>
+
+  <Target DependsOnTargets="ResolveReferences" Name="CopyProjectReferencesToPackage">
+    <ItemGroup>
+      <!--Include native PDBs-->
+      <BuildOutputInPackage Include="$(PackageAssetsPath)$(PackageIdFolderName)\runtimes\**\*.pdb" TargetPath="..\..\runtimes\$(PackageRid)\native"/>
+    </ItemGroup>
+  </Target>
 
 </Project>
