@@ -26,8 +26,24 @@ namespace Microsoft.ML.TensorFlow
                 return;
             }
 
-            if (typeof(T).as_dtype() != tensor.dtype)
+            if (typeof(T) == typeof(sbyte)) { }
+            else if (typeof(T) == typeof(long)) { }
+            else if (typeof(T) == typeof(Int32)) { }
+            else if (typeof(T) == typeof(Int16)) { }
+            else if (typeof(T) == typeof(byte)) { }
+            else if (typeof(T) == typeof(ulong)) { }
+            else if (typeof(T) == typeof(UInt32)) { }
+            //else if (typeof(T) == typeof(UInt16))
+            //    return new Tensor((UInt16)(object)data); no ushort constructor in current version?
+            else if (typeof(T) == typeof(bool)) { }
+            else if (typeof(T) == typeof(float)) { }
+            else if (typeof(T) == typeof(double)) { }
+            else if (typeof(T) == typeof(ReadOnlyMemory<char>)) { }
+            else
                 throw new NotSupportedException();
+
+            //if (typeof(T).as_dtype() != tensor.dtype)
+            //    throw new NotSupportedException();
 
             unsafe
             {
@@ -38,8 +54,24 @@ namespace Microsoft.ML.TensorFlow
 
         public static void CopyTo<T>(this Tensor tensor, Span<T> values) where T : unmanaged
         {
-            if (typeof(T).as_dtype() != tensor.dtype)
+            if (typeof(T) == typeof(sbyte)) { }
+            else if (typeof(T) == typeof(long)) { }
+            else if (typeof(T) == typeof(Int32)) { }
+            else if (typeof(T) == typeof(Int16)) { }
+            else if (typeof(T) == typeof(byte)) { }
+            else if (typeof(T) == typeof(ulong)) { }
+            else if (typeof(T) == typeof(UInt32)) { }
+            //else if (typeof(T) == typeof(UInt16))
+            //    return new Tensor((UInt16)(object)data); no ushort constructor in current version?
+            else if (typeof(T) == typeof(bool)) { }
+            else if (typeof(T) == typeof(float)) { }
+            else if (typeof(T) == typeof(double)) { }
+            else if (typeof(T) == typeof(ReadOnlyMemory<char>)) { }
+            else
                 throw new NotSupportedException();
+
+            //if (typeof(T).as_dtype() != tensor.dtype)
+            //    throw new NotSupportedException();
 
             unsafe
             {

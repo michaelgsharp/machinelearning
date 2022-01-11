@@ -498,7 +498,7 @@ namespace Microsoft.ML.TensorFlow
             else if (typeof(T) == typeof(UInt32))
                 return new Tensor((UInt32)(object)data);
             //else if (typeof(T) == typeof(UInt16))
-            //    return new Tensor((UInt16)(object)data); no ushort in current version?
+            //    return new Tensor((UInt16)(object)data); no ushort constructor in current version?
             else if (typeof(T) == typeof(bool))
                 return new Tensor((bool)(object)data);
             else if (typeof(T) == typeof(float))
