@@ -6,6 +6,7 @@ using System;
 using System.Text;
 using Microsoft.ML.Internal.Utilities;
 using Tensorflow;
+using Tensorflow.Util;
 using Utils = Microsoft.ML.Internal.Utilities.Utils;
 
 namespace Microsoft.ML.TensorFlow

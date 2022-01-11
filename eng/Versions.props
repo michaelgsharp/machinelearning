@@ -27,9 +27,9 @@
     <SystemDrawingCommonPackageVersion>4.5.0</SystemDrawingCommonPackageVersion>
     <SystemIOFileSystemAccessControl>4.5.0</SystemIOFileSystemAccessControl>
     <SystemSecurityPrincipalWindows>4.5.0</SystemSecurityPrincipalWindows>
-    <TensorFlowVersion>2.3.1</TensorFlowVersion>
+    <TensorFlowVersion>2.7.0</TensorFlowVersion>
     <TensorFlowMajorVersion>2</TensorFlowMajorVersion>
-    <TensorflowDotNETVersion>0.20.1</TensorflowDotNETVersion>
+    <TensorflowDotNETVersion>0.70.0</TensorflowDotNETVersion>
     <MicrosoftCodeAnalysisCSharpInternalAnalyzerVersion>3.3.1</MicrosoftCodeAnalysisCSharpInternalAnalyzerVersion>
     <MicrosoftDotNetInteractiveVersion>1.0.0-beta.21155.3</MicrosoftDotNetInteractiveVersion>
     <MicrosoftDotNetInteractiveFormattingVersion>1.0.0-beta.21155.3</MicrosoftDotNetInteractiveFormattingVersion>

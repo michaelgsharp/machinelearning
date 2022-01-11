@@ -15,4 +15,10 @@
     <PackageReference Include="System.Memory" Version="$(SystemMemoryVersion)" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="TensorFlow.NET">
+      <HintPath>C:\Users\misharp\.nuget\packages\tensorflow.net\0.11.8.1\lib\netstandard2.0\TensorFlow.NET.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>
