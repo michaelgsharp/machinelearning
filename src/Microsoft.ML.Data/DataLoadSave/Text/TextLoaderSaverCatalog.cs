@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.ML.Data;
 using Microsoft.ML.Data.IO;
@@ -180,6 +182,78 @@ namespace Microsoft.ML
 
             var loader = new TextLoader(CatalogUtils.GetEnvironment(catalog), options: options);
             return loader.Load(new MultiFileSource(path));
+        }
+
+        /// <summary>
+        /// Load a <see cref="IDataView"/> from a text file using <see cref="TextLoader"/>.
+        /// Note that <see cref="IDataView"/>'s are lazy, so no actual loading happens here, just schema validation.
+        /// </summary>
+        /// <param name="catalog">The <see cref="DataOperationsCatalog"/> catalog.</param>
+        /// <param name="path">Specifies a file or path of files from which to load.</param>
+        /// <param name="schema">The schema to use for data loading</param>
+        /// <param name="separatorChar">The character used as separator between data points in a row. By default the tab character is used as separator.</param>
+        /// <param name="hasHeader">Whether the file has a header. When <see langword="true"/>, the loader will skip the first line when
+        /// <see cref="TextLoader.Load(IMultiStreamSource)"/> is called.</param>
+        /// <param name="allowQuoting">Whether the input may include double-quoted values. This parameter is used to distinguish separator characters
+        /// in an input value from actual separators. When <see langword="true"/>, separators within double quotes are treated as part of the
+        /// input value. When <see langword="false"/>, all separators, even those whitin quotes, are treated as delimiting a new column.
+        /// It is also used to distinguish empty values from missing values. When <see langword="true"/>, missing value are denoted by consecutive
+        /// separators and empty values by \"\". When <see langword="false"/>, empty values are denoted by consecutive separators and missing
+        /// values by the default missing value for each type documented in <see cref="DataKind"/>.</param>
+        /// <param name="trimWhitespace">Remove trailing whitespace from lines.</param>
+        /// <returns>The data view.</returns>
+        public static IDataView LoadFromTextFile(this DataOperationsCatalog catalog,
+            string path,
+            DataViewSchema schema,
+            char separatorChar = TextLoader.Defaults.Separator,
+            bool hasHeader = TextLoader.Defaults.HasHeader,
+            bool allowQuoting = TextLoader.Defaults.AllowQuoting,
+            bool trimWhitespace = TextLoader.Defaults.TrimWhitespace)
+        {
+            var columns = new List<TextLoader.Column>();
+
+            // Offset is to correctly handle the case where a vector column takes up more than one row causing the column index
+            // to no longer map directly to the column in the file.
+            var offset = 0;
+            for (int i = 0; i < schema.Count; i++)
+            {
+                var column = schema[i];
+                // Only use a column if its not hidden.
+                // This shouldn't happen if the schema that's passed in is from loading the model.
+                if (!column.IsHidden)
+                {
+                    // REVIEW: Is there a better way to do these conversions/checks?
+                    var vecType = column.Type as VectorDataViewType;
+                    var keyType = column.Type as KeyDataViewType;
+                    if (vecType != null)
+                    {
+                        if (vecType.IsKnownSize)
+                        {
+                            columns.Add(TextLoader.Column.Parse($"{column.Name}:{column.Type.GetRawKind()}:{column.Index + offset}-{column.Index + offset + vecType.Size}"));
+                            // Since this column takes up more than one column in the text file, have to increase the offset by the size
+                            // of the vector
+                            offset += vecType.Size;
+                        }
+                        else
+                        {
+                            columns.Add(TextLoader.Column.Parse($"{column.Name}:{column.Type.GetRawKind()}:{column.Index + offset}-*"));
+                            // We can only have 1 vector of unknown size, so everything after it needs to be ignored.
+                            break;
+                        }
+                    }
+                    else if (column.Type.IsStandardScalar())
+                    {
+                        columns.Add(TextLoader.Column.Parse($"{column.Name}:{column.Type.GetRawKind()}:{column.Index + offset}"));
+                    }
+                    else if (keyType != null)
+                    {
+                        columns.Add(TextLoader.Column.Parse($"{column.Name}:{column.Type.GetRawKind()}[{keyType.Count}]:{column.Index + offset}"));
+                    }
+                }
+            }
+
+            // Can't allow sparse with this type of loading, so hardcoding to false here.
+            return LoadFromTextFile(catalog, path, columns.ToArray(), separatorChar, hasHeader, allowQuoting, trimWhitespace, false);
         }
 
         /// <summary>

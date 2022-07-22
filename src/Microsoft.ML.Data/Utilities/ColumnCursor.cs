@@ -3,7 +3,9 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using Microsoft.ML.Internal.Utilities;
 using Microsoft.ML.Runtime;
 
 namespace Microsoft.ML.Data
@@ -14,6 +16,8 @@ namespace Microsoft.ML.Data
     /// </summary>
     public static class ColumnCursorExtensions
     {
+        private static readonly FuncStaticMethodInfo1<IDataView, DataViewSchema.Column, IEnumerable> _getValueMethodInfo
+            = new FuncStaticMethodInfo1<IDataView, DataViewSchema.Column, IEnumerable>(GetValue<int>);
 
         /// <summary>
         /// Extract all values of one column of the data view in a form of an <see cref="IEnumerable{T}"/>.
@@ -93,6 +97,27 @@ namespace Microsoft.ML.Data
 
             throw Contracts.ExceptParam(nameof(column), string.Format("Cannot map column (name: {0}, type: {1}) in {2} to the user-defined type, {3}.",
                 column.Name, column.Type, nameof(data), typeof(T)));
+        }
+
+        /// <summary>
+        /// Extract all values of one column of the data view in a form of an <see cref="IEnumerable"/>.
+        /// </summary>
+        /// <param name="data">The data view to get the column from.</param>
+        /// <param name="column">The column to be extracted.</param>
+        public static IEnumerable GetColumnAsObject(this IDataView data, DataViewSchema.Column column)
+        {
+            return Utils.MarshalInvoke(_getValueMethodInfo, column.Type.RawType, data, column);
+        }
+
+        public static IEnumerable GetColumnAsObject(this IDataView data, string name)
+        {
+            var column = data.Schema[name];
+            return Utils.MarshalInvoke(_getValueMethodInfo, column.Type.RawType, data, column);
+        }
+
+        private static IEnumerable GetValue<T>(IDataView dataview, DataViewSchema.Column column)
+        {
+            return dataview.GetColumn<T>(column);
         }
 
         private static IEnumerable<T> GetColumnDirect<T>(IDataView data, int col)
