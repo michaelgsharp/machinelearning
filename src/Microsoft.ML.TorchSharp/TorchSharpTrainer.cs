@@ -251,7 +251,6 @@ namespace Microsoft.ML.TorchSharp.NasBert
                 base(Contracts.CheckRef(parent, nameof(parent)).Host.Register(nameof(Mapper)), inputSchema, parent)
             {
                 _parent = parent;
-
                 _inputSchema = inputSchema;
 
                 torch.random.manual_seed(1);
