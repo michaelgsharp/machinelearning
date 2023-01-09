@@ -295,7 +295,7 @@ namespace Microsoft.ML.Data
                 && vectorType.ItemType is TextDataViewType;
         }
 
-        public static void GetSlotNames(RoleMappedSchema schema, RoleMappedSchema.ColumnRole role, int vectorSize, ref VBuffer<ReadOnlyMemory<char>> slotNames)
+        public static void GetSlotNames<TValue>(RoleMappedSchema schema, RoleMappedSchema.ColumnRole role, int vectorSize, ref VBuffer<TValue> slotNames)
         {
             Contracts.CheckValueOrNull(schema);
             Contracts.CheckParam(vectorSize >= 0, nameof(vectorSize));

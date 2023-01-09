@@ -478,7 +478,7 @@ namespace Microsoft.ML.Data
         {
             if (GetTypesForWrapping(mapper, labelNameType, AnnotationUtils.Kinds.SlotNames, out var scoreType))
                 // Check that the type is vector, and is of compatible size with the score output.
-                return labelNameType is VectorDataViewType vectorType && vectorType.Size == scoreType.GetVectorSize() && vectorType.ItemType == TextDataViewType.Instance;
+                return labelNameType is VectorDataViewType vectorType && vectorType.Size == scoreType.GetVectorSize();
             return false;
         }
 

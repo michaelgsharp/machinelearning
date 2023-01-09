@@ -18,11 +18,21 @@ namespace Microsoft.ML.Data
         /// this input vector size.
         /// </summary>
         /// <param name="column">The column whose <see cref="DataViewSchema.Column.Annotations"/> will be queried.</param>
-        /// <seealso cref="GetSlotNames(DataViewSchema.Column, ref VBuffer{ReadOnlyMemory{char}})"/>
+        /// <seealso cref="GetSlotNames{TValue}(DataViewSchema.Column, ref VBuffer{TValue})"/>
         public static bool HasSlotNames(this DataViewSchema.Column column)
             => column.Type is VectorDataViewType vectorType
                 && vectorType.Size > 0
                 && column.HasSlotNames(vectorType.Size);
+
+        /// <summary>
+        /// Stores the slots names of the input column into the provided buffer, if there are slot names.
+        /// Otherwise it will throw an exception.
+        /// </summary>
+        /// <seealso cref="HasSlotNames(DataViewSchema.Column)"/>
+        /// <param name="column">The column whose <see cref="DataViewSchema.Column.Annotations"/> will be queried.</param>
+        /// <param name="slotNames">The <see cref="VBuffer{T}"/> into which the slot names will be stored.</param>
+        public static void GetSlotNames<TValue>(this DataViewSchema.Column column, ref VBuffer<TValue> slotNames)
+            => column.Annotations.GetValue(AnnotationUtils.Kinds.SlotNames, ref slotNames);
 
         /// <summary>
         /// Stores the slots names of the input column into the provided buffer, if there are slot names.
