@@ -4,15 +4,20 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using Microsoft.ML.Data;
+using Microsoft.ML.EntryPoints;
 using Microsoft.ML.Model.OnnxConverter;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.ML.Runtime;
 using static Microsoft.ML.Model.OnnxConverter.OnnxCSharpToProtoWrapper;
 using OnnxShape = System.Collections.Generic.List<int>;
+using System.Reflection;
 
 namespace Microsoft.ML.Transforms.Onnx
 {
@@ -492,11 +497,23 @@ namespace Microsoft.ML.Transforms.Onnx
 
             if (typeof(T) == typeof(ReadOnlyMemory<char>))
             {
-                string[] stringData = new string[data.Length];
-                for (int i = 0; i < data.Length; i++)
-                    stringData[i] = data[i].ToString();
+                ReadOnlyMemory<char>[] text = new ReadOnlyMemory<char>[data.Length];
 
-                return NamedOnnxValue.CreateFromTensor<string>(name, new DenseTensor<string>(stringData, dimensions));
+
+                for (int i = 0; i < data.Length; i++)
+                {
+                    var val = data[i];
+
+                    switch (val)
+                    {
+                        case ReadOnlyMemory<char> a:
+                            text[i] = a;
+                            break;
+                    }
+
+                }
+
+                return NamedOnnxValue.CreateFromTensor(name, new DenseTensor<ReadOnlyMemory<char>>(text, dimensions));
             }
 
             return NamedOnnxValue.CreateFromTensor<T>(name, new DenseTensor<T>(data.ToArray(), dimensions));
