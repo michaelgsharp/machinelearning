@@ -119,5 +119,22 @@ namespace Microsoft.ML
         [BestFriend]
         internal static MissingValueReplacingEstimator ReplaceMissingValues(this TransformsCatalog catalog, params MissingValueReplacingEstimator.ColumnOptions[] columns)
             => new MissingValueReplacingEstimator(CatalogUtils.GetEnvironment(catalog), columns);
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="catalog"></param>
+        /// <param name="outputColumnName"></param>
+        /// <param name="inputColumnName"></param>
+        /// <returns></returns>
+        public static MissingValueDroppingEstimator RemoveMissingValues(this TransformsCatalog catalog,
+            string outputColumnName,
+            string inputColumnName = null)
+        {
+            var env = CatalogUtils.GetEnvironment(catalog);
+            env.CheckValue(outputColumnName, nameof(outputColumnName));
+
+            return new MissingValueDroppingEstimator(env, (outputColumnName, inputColumnName == null ? outputColumnName : inputColumnName));
+        }
     }
 }

@@ -28,9 +28,9 @@ using Microsoft.ML.Transforms;
 
 namespace Microsoft.ML.Transforms
 {
-    internal sealed class MissingValueDroppingEstimator : TrivialEstimator<MissingValueDroppingTransformer>
+    public sealed class MissingValueDroppingEstimator : TrivialEstimator<MissingValueDroppingTransformer>
     {
-        public MissingValueDroppingEstimator(IHostEnvironment env, params (string outputColumnName, string inputColumnName)[] columns)
+        internal MissingValueDroppingEstimator(IHostEnvironment env, params (string outputColumnName, string inputColumnName)[] columns)
             : base(Contracts.CheckRef(env, nameof(env)).Register(nameof(MissingValueDroppingEstimator)), new MissingValueDroppingTransformer(env, columns))
         {
         }
@@ -56,7 +56,7 @@ namespace Microsoft.ML.Transforms
     }
 
     /// <include file='doc.xml' path='doc/members/member[@name="NADrop"]'/>
-    internal sealed class MissingValueDroppingTransformer : OneToOneTransformerBase
+    public sealed class MissingValueDroppingTransformer : OneToOneTransformerBase
     {
         internal sealed class Options : TransformInputBase
         {
