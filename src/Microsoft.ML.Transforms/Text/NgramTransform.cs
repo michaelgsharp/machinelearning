@@ -99,6 +99,7 @@ namespace Microsoft.ML.Transforms.Text
         }
 
         private const uint VerTfIdfSupported = 0x00010002;
+        private const uint VerNGramDicSupported = 0x00010004;
 
         internal const string LoaderSignature = "NgramTransform";
         internal const string Summary = "Produces a bag of counts of n-grams (sequences of consecutive values of length 1-n) in a given vector of keys. "
@@ -112,8 +113,9 @@ namespace Microsoft.ML.Transforms.Text
                 modelSignature: "NGRAMTRN",
                 // verWrittenCur: 0x00010001, // Initial
                 // verWrittenCur: 0x00010002, // Add support for TF-IDF
-                verWrittenCur: 0x00010003, // Get rid of writing float size in model context
-                verReadableCur: 0x00010003,
+                //verWrittenCur: 0x00010003, // Get rid of writing float size in model context
+                verWrittenCur: 0x00010004, // NGram Dictionary Support
+                verReadableCur: 0x00010004,
                 verWeCanReadBack: 0x00010001,
                 loaderSignature: LoaderSignature,
                 loaderAssemblyName: typeof(NgramExtractingTransformer).Assembly.FullName);
@@ -188,6 +190,9 @@ namespace Microsoft.ML.Transforms.Text
         // These contain the n-gram maps
         private readonly SequencePool[] _ngramMaps;
 
+        // Contains the pre-defined list of ngrams we care about.
+        private readonly SequencePool _ngramDictionary;
+
         // Ngram inverse document frequencies
         private readonly double[][] _invDocFreqs;
 
@@ -204,7 +209,7 @@ namespace Microsoft.ML.Transforms.Text
                 throw Host.ExceptSchemaMismatch(nameof(inputSchema), "input", ColumnPairs[col].inputColumnName, NgramExtractingEstimator.ExpectedColumnType, type.ToString());
         }
 
-        internal NgramExtractingTransformer(IHostEnvironment env, IDataView input, NgramExtractingEstimator.ColumnOptions[] columns)
+        internal NgramExtractingTransformer(IHostEnvironment env, IDataView input, NgramExtractingEstimator.ColumnOptions[] columns, string[] ngramDictionary = null)
            : base(Contracts.CheckRef(env, nameof(env)).Register(nameof(NgramExtractingTransformer)), GetColumnPairs(columns))
         {
             var transformInfos = new TransformInfo[columns.Length];
@@ -215,10 +220,35 @@ namespace Microsoft.ML.Transforms.Text
                 transformInfos[i] = new TransformInfo(columns[i]);
             }
             _transformInfos = transformInfos.ToImmutableArray();
+
+            if (ngramDictionary != null)
+            {
+                _ngramDictionary = new SequencePool();
+                VBuffer<ReadOnlyMemory<char>> keys = default;
+                input.Schema[columns[0].InputColumnName].GetKeyValues(ref keys);
+                var keyList = new List<uint>();
+                foreach (var ngram in ngramDictionary)
+                {
+                    var split = ngram.Split();
+                    foreach (var key in split)
+                    {
+                        for (int i = 0; i < keys.Length; i++)
+                        {
+                            if (keys.GetValues()[i].ToString() == key)
+                            {
+                                keyList.Add((uint)i + 1);
+                                break;
+                            }
+                        }
+                    }
+                    _ngramDictionary.TryAdd(keyList.ToArray(), 0, keyList.Count, out _);
+                    keyList.Clear();
+                }
+            }
             _ngramMaps = Train(Host, columns, _transformInfos, input, out _invDocFreqs);
         }
 
-        private static SequencePool[] Train(IHostEnvironment env, NgramExtractingEstimator.ColumnOptions[] columns, ImmutableArray<TransformInfo> transformInfos, IDataView trainingData, out double[][] invDocFreqs)
+        private SequencePool[] Train(IHostEnvironment env, NgramExtractingEstimator.ColumnOptions[] columns, ImmutableArray<TransformInfo> transformInfos, IDataView trainingData, out double[][] invDocFreqs)
         {
             var helpers = new NgramBufferBuilder[columns.Length];
             var getters = new ValueGetter<VBuffer<uint>>[columns.Length];
@@ -254,7 +284,7 @@ namespace Microsoft.ML.Transforms.Text
                     // Note: GetNgramIdFinderAdd will control how many n-grams of a specific length will
                     // be added (using lims[iinfo]), therefore we set slotLim to the maximum
                     helpers[iinfo] = new NgramBufferBuilder(ngramLength, skipLength, Utils.ArrayMaxSize,
-                        GetNgramIdFinderAdd(env, counts[iinfo], columns[iinfo].MaximumNgramsCounts, ngramMaps[iinfo], transformInfos[iinfo].RequireIdf));
+                        GetNgramIdFinderAdd(env, counts[iinfo], columns[iinfo].MaximumNgramsCounts, ngramMaps[iinfo], transformInfos[iinfo].RequireIdf, _ngramDictionary));
                 }
 
                 int cInfoFull = 0;
@@ -335,7 +365,7 @@ namespace Microsoft.ML.Transforms.Text
             env.Assert(count == pool.Count);
         }
 
-        private static NgramIdFinder GetNgramIdFinderAdd(IHostEnvironment env, int[] counts, IReadOnlyList<int> lims, SequencePool pool, bool requireIdf)
+        private static NgramIdFinder GetNgramIdFinderAdd(IHostEnvironment env, int[] counts, IReadOnlyList<int> lims, SequencePool pool, bool requireIdf, SequencePool ngramDictionary)
         {
             Contracts.AssertValue(env);
             env.Assert(lims.Count > 0);
@@ -353,8 +383,17 @@ namespace Microsoft.ML.Transforms.Text
 
                     var max = lim - 1;
                     int slot = -1;
-                    if (counts[max] < lims[max] && pool.TryAdd(ngram, 0, lim, out slot) && ++counts[max] >= lims[max])
-                        numFull++;
+
+                    if (ngramDictionary == default)
+                    {
+                        if (counts[max] < lims[max] && pool.TryAdd(ngram, 0, lim, out slot) && ++counts[max] >= lims[max])
+                            numFull++;
+                    }
+                    else
+                    {
+                        if (counts[max] < lims[max] && ngramDictionary.Get(ngram, 0, lim) != -1 && pool.TryAdd(ngram, 0, lim, out slot) && ++counts[max] >= lims[max])
+                            numFull++;
+                    }
 
                     // Note: 'slot' is either the id of the added n-gram or -1. In case it is -1, find its id.
                     // Note: 'more' controls whether more n-grams/skip-grams should be processed in the current
@@ -387,6 +426,8 @@ namespace Microsoft.ML.Transforms.Text
             //   _transformInfo
             //   the n-gram SequencePool
             //   the n-gram inverse document frequencies
+            // True if NGramDictionary was provided else false
+            // The NGramDictionary if it was provided.
             var transformInfos = new TransformInfo[columnsLength];
             _ngramMaps = new SequencePool[columnsLength];
             _invDocFreqs = new double[columnsLength][];
@@ -403,6 +444,12 @@ namespace Microsoft.ML.Transforms.Text
                 }
             }
             _transformInfos = transformInfos.ToImmutableArray();
+
+            if (ctx.Header.ModelVerWritten >= VerNGramDicSupported)
+            {
+                if (ctx.Reader.ReadBoolByte())
+                    _ngramDictionary = new SequencePool(ctx.Reader);
+            }
         }
 
         // Factory method for SignatureDataTransform.
@@ -461,6 +508,8 @@ namespace Microsoft.ML.Transforms.Text
             //   _transformInfo
             //   the n-gram SequencePool
             //   the n-gram inverse document frequencies
+            // True if NGramDictionary was provided else false
+            // The NGramDictionary if it was provided.
             SaveColumns(ctx);
             for (int i = 0; i < _transformInfos.Length; i++)
             {
@@ -468,6 +517,14 @@ namespace Microsoft.ML.Transforms.Text
                 _ngramMaps[i].Save(ctx.Writer);
                 ctx.Writer.WriteDoubleArray(_invDocFreqs[i]);
             }
+
+            if (_ngramDictionary != null)
+            {
+                ctx.Writer.WriteBoolByte(true);
+                _ngramDictionary.Save(ctx.Writer);
+            }
+            else
+                ctx.Writer.WriteBoolByte(false);
         }
 
         private protected override IRowMapper MakeRowMapper(DataViewSchema schema) => new Mapper(this, schema);
@@ -855,7 +912,7 @@ namespace Microsoft.ML.Transforms.Text
     /// Check the See Also section for links to usage examples.
     /// ]]></format>
     /// </remarks>
-    /// <seealso cref="TextCatalog.ProduceNgrams(TransformsCatalog.TextTransforms, string, string, int, int, bool, int, WeightingCriteria)"/>
+    /// <seealso cref="TextCatalog.ProduceNgrams(TransformsCatalog.TextTransforms, string, string, int, int, bool, int, WeightingCriteria, string[])"/>
     public sealed class NgramExtractingEstimator : IEstimator<NgramExtractingTransformer>
     {
         /// <summary>
@@ -891,7 +948,7 @@ namespace Microsoft.ML.Transforms.Text
 
         private readonly IHost _host;
         private readonly ColumnOptions[] _columns;
-
+        private readonly string[] _ngramDictionary;
         /// <summary>
         /// Produces a bag of counts of n-grams (sequences of consecutive words) in <paramref name="inputColumnName"/>
         /// and outputs bag of word vector as <paramref name="outputColumnName"/>
@@ -904,15 +961,18 @@ namespace Microsoft.ML.Transforms.Text
         /// <param name="useAllLengths">Whether to include all n-gram lengths up to <paramref name="ngramLength"/> or only <paramref name="ngramLength"/>.</param>
         /// <param name="maximumNgramsCount">Maximum number of n-grams to store in the dictionary.</param>
         /// <param name="weighting">Statistical measure used to evaluate how important a word is to a document in a corpus.</param>
+        /// <param name="ngramDictionary"></param>
         internal NgramExtractingEstimator(IHostEnvironment env,
             string outputColumnName, string inputColumnName = null,
             int ngramLength = Defaults.NgramLength,
             int skipLength = Defaults.SkipLength,
             bool useAllLengths = Defaults.UseAllLengths,
             int maximumNgramsCount = Defaults.MaximumNgramsCount,
-            WeightingCriteria weighting = Defaults.Weighting)
+            WeightingCriteria weighting = Defaults.Weighting,
+            string[] ngramDictionary = null)
             : this(env, new[] { (outputColumnName, inputColumnName ?? outputColumnName) }, ngramLength, skipLength, useAllLengths, maximumNgramsCount, weighting)
         {
+            _ngramDictionary = ngramDictionary;
         }
 
         /// <summary>
@@ -953,7 +1013,7 @@ namespace Microsoft.ML.Transforms.Text
         /// <summary>
         /// Trains and returns a <see cref="NgramExtractingTransformer"/>.
         /// </summary>
-        public NgramExtractingTransformer Fit(IDataView input) => new NgramExtractingTransformer(_host, input, _columns);
+        public NgramExtractingTransformer Fit(IDataView input) => new NgramExtractingTransformer(_host, input, _columns, _ngramDictionary);
 
         internal static bool IsColumnTypeValid(DataViewType type)
         {

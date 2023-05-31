@@ -666,6 +666,57 @@ namespace Microsoft.ML.Tests.Transformers
         }
 
         [Fact]
+        public void TestNGramDictionary()
+        {
+            var mlContext = new MLContext(1);
+            var samples = new List<TextData>()
+            {
+                new TextData(){ Text = "This is an example to compute bag-of-word features." },
+                new TextData(){ Text = "ML.NET's ProduceWordBags API produces bag-of-word features from input text." },
+                new TextData(){ Text = "It does so by first tokenizing text/string into words/tokens then " },
+                new TextData(){ Text = "computing n-grams and their numeric values. This is" },
+                new TextData(){ Text = "Each position in the output vector corresponds to a particular n-gram." },
+                new TextData(){ Text = "The value at each position corresponds to," },
+                new TextData(){ Text = "the number of times n-gram occurred in the data (Tf), or This is" },
+                new TextData(){ Text = "the inverse of the number of documents contain the n-gram (Idf)," },
+                new TextData(){ Text = "or compute both and multiply together (Tf-Idf). This is This is This is This is" },
+            };
+
+            var dataview = mlContext.Data.LoadFromEnumerable(samples);
+
+            var kSamples = new string[]
+            {
+                "or compute both and multiply together",
+                "the inverse of the",
+                "This is"
+            };
+
+            var pipeline = mlContext.Transforms.Text.TokenizeIntoWords("Text")
+                .Append(mlContext.Transforms.Conversion.MapValueToKey("Text"))
+                // Have to manually set the max ngramLength for now equal to the max length in the predefined ngramDictionary
+                .Append(mlContext.Transforms.Text.ProduceNgrams("Text", ngramLength: 6, weighting: NgramExtractingEstimator.WeightingCriteria.Tf, ngramDictionary: kSamples));
+
+            var transformer = pipeline.Fit(dataview);
+            var transformedData = transformer.Transform(dataview);
+            var prev = transformedData.Preview(100);
+
+            VBuffer<ReadOnlyMemory<char>> slots = default;
+            transformedData.Schema["Text"].GetSlotNames(ref slots);
+            // Slot names correspond to the order they were provided in the string array. So for this case
+            // 0 = or compute both and multiply together
+            // 1 = the inverese of the 
+            // 2 = This is
+
+            var predictionEngine = mlContext.Model.CreatePredictionEngine<TextData, TransformedTextData>(transformer);
+            var prediction = predictionEngine.Predict(samples[8]);
+
+            Assert.Equal(prediction.Text, new float[] { 4f, 0f, 1f });
+            // Length of the slot names should be equal to the length of the key/string array passed in.
+            Assert.Equal(kSamples.Length, slots.Length);
+            TestEstimatorCore(pipeline, dataview);
+        }
+
+        [Fact]
         public void LdaWorkout()
         {
             IHostEnvironment env = new MLContext(seed: 42);
@@ -784,6 +835,16 @@ namespace Microsoft.ML.Tests.Transformers
 
             TestEstimatorCore(pipeline, dataView);
             Done();
+        }
+
+        private class TextData
+        {
+            public string Text { get; set; }
+        }
+
+        private class TransformedTextData
+        {
+            public float[] Text { get; set; }
         }
     }
 }

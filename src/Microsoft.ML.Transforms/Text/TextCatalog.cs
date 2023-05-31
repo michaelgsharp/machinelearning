@@ -258,6 +258,7 @@ namespace Microsoft.ML
         /// <param name="weighting">Statistical measure used to evaluate how important a word or n-gram is to a document in a corpus.
         /// When <paramref name="maximumNgramsCount"/> is smaller than the total number of encountered n-grams this measure is used
         /// to determine which n-grams to keep.</param>
+        /// <param name="ngramDictionary">Pre difined list of ngrams to care about.</param>
         /// <example>
         /// <format type="text/markdown">
         /// <![CDATA[
@@ -272,9 +273,10 @@ namespace Microsoft.ML
             int skipLength = NgramExtractingEstimator.Defaults.SkipLength,
             bool useAllLengths = NgramExtractingEstimator.Defaults.UseAllLengths,
             int maximumNgramsCount = NgramExtractingEstimator.Defaults.MaximumNgramsCount,
-            NgramExtractingEstimator.WeightingCriteria weighting = NgramExtractingEstimator.Defaults.Weighting) =>
+            NgramExtractingEstimator.WeightingCriteria weighting = NgramExtractingEstimator.Defaults.Weighting,
+            string[] ngramDictionary = null) =>
             new NgramExtractingEstimator(Contracts.CheckRef(catalog, nameof(catalog)).GetEnvironment(), outputColumnName, inputColumnName,
-                ngramLength, skipLength, useAllLengths, maximumNgramsCount, weighting);
+                ngramLength, skipLength, useAllLengths, maximumNgramsCount, weighting, ngramDictionary);
 
         /// <summary>
         /// Produces a bag of counts of n-grams (sequences of consecutive words) in <paramref name="columns.inputs"/>
