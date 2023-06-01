@@ -694,7 +694,7 @@ namespace Microsoft.ML.Tests.Transformers
             var pipeline = mlContext.Transforms.Text.TokenizeIntoWords("Text")
                 .Append(mlContext.Transforms.Conversion.MapValueToKey("Text"))
                 // Have to manually set the max ngramLength for now equal to the max length in the predefined ngramDictionary
-                .Append(mlContext.Transforms.Text.ProduceNgrams("Text", ngramLength: 6, weighting: NgramExtractingEstimator.WeightingCriteria.Tf, ngramDictionary: kSamples));
+                .Append(mlContext.Transforms.Text.ProduceNgrams("Text", kSamples, ngramLength: 6, weighting: NgramExtractingEstimator.WeightingCriteria.Tf));
 
             var transformer = pipeline.Fit(dataview);
             var transformedData = transformer.Transform(dataview);

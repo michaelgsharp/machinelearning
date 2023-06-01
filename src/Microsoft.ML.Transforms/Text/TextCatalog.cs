@@ -258,7 +258,6 @@ namespace Microsoft.ML
         /// <param name="weighting">Statistical measure used to evaluate how important a word or n-gram is to a document in a corpus.
         /// When <paramref name="maximumNgramsCount"/> is smaller than the total number of encountered n-grams this measure is used
         /// to determine which n-grams to keep.</param>
-        /// <param name="ngramDictionary">Pre difined list of ngrams to care about.</param>
         /// <example>
         /// <format type="text/markdown">
         /// <![CDATA[
@@ -273,11 +272,46 @@ namespace Microsoft.ML
             int skipLength = NgramExtractingEstimator.Defaults.SkipLength,
             bool useAllLengths = NgramExtractingEstimator.Defaults.UseAllLengths,
             int maximumNgramsCount = NgramExtractingEstimator.Defaults.MaximumNgramsCount,
-            NgramExtractingEstimator.WeightingCriteria weighting = NgramExtractingEstimator.Defaults.Weighting,
-            string[] ngramDictionary = null) =>
+            NgramExtractingEstimator.WeightingCriteria weighting = NgramExtractingEstimator.Defaults.Weighting) =>
+            new NgramExtractingEstimator(Contracts.CheckRef(catalog, nameof(catalog)).GetEnvironment(), outputColumnName, inputColumnName,
+                ngramLength, skipLength, useAllLengths, maximumNgramsCount, weighting);
+
+
+        /// <summary>
+        /// Creates a <see cref="NgramExtractingEstimator"/> which produces a vector of counts of n-grams (sequences of consecutive words)
+        /// encountered in the input text.
+        /// </summary>
+        /// <param name="catalog">The text-related transform's catalog.</param>
+        /// <param name="outputColumnName">Name of the column resulting from the transformation of <paramref name="inputColumnName"/>.
+        /// This column's data type will be a vector of <see cref="System.Single"/>.</param>
+        /// <param name="inputColumnName">Name of the column to transform. If set to <see langword="null"/>, the value of the <paramref name="outputColumnName"/> will be used as source.
+        /// This estimator operates over vectors of keys data type.</param>
+        /// <param name="ngramLength">Ngram length.</param>
+        /// <param name="skipLength">Number of tokens to skip between each n-gram. By default no token is skipped.</param>
+        /// <param name="useAllLengths">Whether to include all n-gram lengths up to <paramref name="ngramLength"/> or only <paramref name="ngramLength"/>.</param>
+        /// <param name="maximumNgramsCount">Maximum number of n-grams to store in the dictionary.</param>
+        /// <param name="weighting">Statistical measure used to evaluate how important a word or n-gram is to a document in a corpus.
+        /// When <paramref name="maximumNgramsCount"/> is smaller than the total number of encountered n-grams this measure is used
+        /// to determine which n-grams to keep.</param>
+        /// <param name="ngramDictionary">Pre difined list of ngrams to care about.</param>
+        /// <example>
+        /// <format type="text/markdown">
+        /// <![CDATA[
+        /// [!code-csharp[ProduceNgrams](~/../docs/samples/docs/samples/Microsoft.ML.Samples/Dynamic/Transforms/Text/ProduceNgrams.cs)]
+        /// ]]>
+        /// </format>
+        /// </example>
+        public static NgramExtractingEstimator ProduceNgrams(this TransformsCatalog.TextTransforms catalog,
+            string outputColumnName,
+            string[] ngramDictionary,
+            string inputColumnName = null,
+            int ngramLength = NgramExtractingEstimator.Defaults.NgramLength,
+            int skipLength = NgramExtractingEstimator.Defaults.SkipLength,
+            bool useAllLengths = NgramExtractingEstimator.Defaults.UseAllLengths,
+            int maximumNgramsCount = NgramExtractingEstimator.Defaults.MaximumNgramsCount,
+            NgramExtractingEstimator.WeightingCriteria weighting = NgramExtractingEstimator.Defaults.Weighting) =>
             new NgramExtractingEstimator(Contracts.CheckRef(catalog, nameof(catalog)).GetEnvironment(), outputColumnName, inputColumnName,
                 ngramLength, skipLength, useAllLengths, maximumNgramsCount, weighting, ngramDictionary);
-
         /// <summary>
         /// Produces a bag of counts of n-grams (sequences of consecutive words) in <paramref name="columns.inputs"/>
         /// and outputs bag of word vector for each output in <paramref name="columns.output"/>

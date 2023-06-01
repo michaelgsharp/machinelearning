@@ -912,7 +912,9 @@ namespace Microsoft.ML.Transforms.Text
     /// Check the See Also section for links to usage examples.
     /// ]]></format>
     /// </remarks>
-    /// <seealso cref="TextCatalog.ProduceNgrams(TransformsCatalog.TextTransforms, string, string, int, int, bool, int, WeightingCriteria, string[])"/>
+    /// <seealso cref="TextCatalog.ProduceNgrams(TransformsCatalog.TextTransforms, string, string, int, int, bool, int, WeightingCriteria)"/>
+    ///     /// <seealso cref="TextCatalog.ProduceNgrams(TransformsCatalog.TextTransforms, string, string[], string, int, int, bool, int, WeightingCriteria)"/>
+
     public sealed class NgramExtractingEstimator : IEstimator<NgramExtractingTransformer>
     {
         /// <summary>
