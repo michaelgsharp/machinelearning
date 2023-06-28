@@ -963,11 +963,6 @@ namespace Microsoft.ML.Transforms.Text
                 if (ngramLength == 1 && skipLength != 0)
                     throw Contracts.ExceptUserArg(nameof(skipLength), string.Format(
                         "{0} (actual value: {1}) can only be zero when {2} set to one.", nameof(skipLength), skipLength, nameof(ngramLength)));
-                if (ngramLength + skipLength > NgramBufferBuilder.MaxSkipNgramLength)
-                {
-                    throw Contracts.ExceptUserArg(nameof(skipLength),
-                        $"The sum of skipLength and ngramLength must be less than or equal to {NgramBufferBuilder.MaxSkipNgramLength}");
-                }
 
                 FriendlyNames = null;
                 Name = name;
@@ -1003,10 +998,9 @@ namespace Microsoft.ML.Transforms.Text
                     InputColumnNamesArray[i] = ctx.LoadNonEmptyString();
                 Name = ctx.LoadNonEmptyString();
                 NgramLength = ctx.Reader.ReadInt32();
-                Contracts.CheckDecode(0 < NgramLength && NgramLength <= NgramBufferBuilder.MaxSkipNgramLength);
+                Contracts.CheckDecode(0 < NgramLength);
                 SkipLength = ctx.Reader.ReadInt32();
-                Contracts.CheckDecode(0 <= SkipLength && SkipLength <= NgramBufferBuilder.MaxSkipNgramLength);
-                Contracts.CheckDecode(SkipLength <= NgramBufferBuilder.MaxSkipNgramLength - NgramLength);
+                Contracts.CheckDecode(0 <= SkipLength);
                 NumberOfBits = ctx.Reader.ReadInt32();
                 Contracts.CheckDecode(1 <= NumberOfBits && NumberOfBits <= 30);
                 Seed = ctx.Reader.ReadUInt32();
@@ -1033,10 +1027,9 @@ namespace Microsoft.ML.Transforms.Text
                 // byte: Ordered
                 // byte: AllLengths
                 NgramLength = ctx.Reader.ReadInt32();
-                Contracts.CheckDecode(0 < NgramLength && NgramLength <= NgramBufferBuilder.MaxSkipNgramLength);
+                Contracts.CheckDecode(0 < NgramLength);
                 SkipLength = ctx.Reader.ReadInt32();
-                Contracts.CheckDecode(0 <= SkipLength && SkipLength <= NgramBufferBuilder.MaxSkipNgramLength);
-                Contracts.CheckDecode(SkipLength <= NgramBufferBuilder.MaxSkipNgramLength - NgramLength);
+                Contracts.CheckDecode(0 <= SkipLength);
                 NumberOfBits = ctx.Reader.ReadInt32();
                 Contracts.CheckDecode(1 <= NumberOfBits && NumberOfBits <= 30);
                 Seed = ctx.Reader.ReadUInt32();
@@ -1066,10 +1059,9 @@ namespace Microsoft.ML.Transforms.Text
                     ctx.SaveNonEmptyString(InputColumnNamesArray[i]);
                 ctx.SaveNonEmptyString(Name);
 
-                Contracts.Assert(0 < NgramLength && NgramLength <= NgramBufferBuilder.MaxSkipNgramLength);
+                Contracts.Assert(0 < NgramLength);
                 ctx.Writer.Write(NgramLength);
-                Contracts.Assert(0 <= SkipLength && SkipLength <= NgramBufferBuilder.MaxSkipNgramLength);
-                Contracts.Assert(NgramLength + SkipLength <= NgramBufferBuilder.MaxSkipNgramLength);
+                Contracts.Assert(0 <= SkipLength);
                 ctx.Writer.Write(SkipLength);
                 Contracts.Assert(1 <= NumberOfBits && NumberOfBits <= 30);
                 ctx.Writer.Write(NumberOfBits);

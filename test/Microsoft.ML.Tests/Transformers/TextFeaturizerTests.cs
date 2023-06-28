@@ -688,13 +688,14 @@ namespace Microsoft.ML.Tests.Transformers
             {
                 "or compute both and multiply together",
                 "the inverse of the",
-                "This is"
+                "This is",
+                "Each position in the output vector corresponds to a particular n-gram."
             };
 
             var pipeline = mlContext.Transforms.Text.TokenizeIntoWords("Text")
                 .Append(mlContext.Transforms.Conversion.MapValueToKey("Text"))
                 // Have to manually set the max ngramLength for now equal to the max length in the predefined ngramDictionary
-                .Append(mlContext.Transforms.Text.ProduceNgrams("Text", kSamples, ngramLength: 6, weighting: NgramExtractingEstimator.WeightingCriteria.Tf));
+                .Append(mlContext.Transforms.Text.ProduceNgrams("Text", kSamples, ngramLength: 11, weighting: NgramExtractingEstimator.WeightingCriteria.Tf));
 
             var transformer = pipeline.Fit(dataview);
             var transformedData = transformer.Transform(dataview);
@@ -706,11 +707,12 @@ namespace Microsoft.ML.Tests.Transformers
             // 0 = or compute both and multiply together
             // 1 = the inverese of the 
             // 2 = This is
+            // 3 = Each position in the output vector corresponds to a particular n-gram.
 
             var predictionEngine = mlContext.Model.CreatePredictionEngine<TextData, TransformedTextData>(transformer);
             var prediction = predictionEngine.Predict(samples[8]);
 
-            Assert.Equal(prediction.Text, new float[] { 4f, 0f, 1f });
+            Assert.Equal(prediction.Text, new float[] { 1f, 0f, 4f, 0f });
             // Length of the slot names should be equal to the length of the key/string array passed in.
             Assert.Equal(kSamples.Length, slots.Length);
             TestEstimatorCore(pipeline, dataview);

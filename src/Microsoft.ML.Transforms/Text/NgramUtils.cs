@@ -40,15 +40,12 @@ namespace Microsoft.ML.Data
         private readonly int _slotLim;
         private readonly NgramIdFinder _finder;
 
-        public const int MaxSkipNgramLength = 10;
-
         public bool IsEmpty { get { return _slotLim == 0; } }
 
         public NgramBufferBuilder(int ngramLength, int skipLength, int slotLim, NgramIdFinder finder)
         {
             Contracts.Assert(ngramLength > 0);
             Contracts.Assert(skipLength >= 0);
-            Contracts.Assert(ngramLength <= MaxSkipNgramLength - skipLength);
             Contracts.Assert(slotLim >= 0);
 
             _ngramLength = ngramLength;

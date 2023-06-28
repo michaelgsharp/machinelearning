@@ -152,10 +152,9 @@ namespace Microsoft.ML.Transforms.Text
                 // bool[NgramLength]: NonEmptyLevels
 
                 NgramLength = ctx.Reader.ReadInt32();
-                Contracts.CheckDecode(0 < NgramLength && NgramLength <= NgramBufferBuilder.MaxSkipNgramLength);
+                Contracts.CheckDecode(0 < NgramLength);
                 SkipLength = ctx.Reader.ReadInt32();
-                Contracts.CheckDecode(0 <= SkipLength && SkipLength <= NgramBufferBuilder.MaxSkipNgramLength);
-                Contracts.CheckDecode(NgramLength <= NgramBufferBuilder.MaxSkipNgramLength - SkipLength);
+                Contracts.CheckDecode(0 <= SkipLength);
 
                 if (readWeighting)
                     Weighting = (NgramExtractingEstimator.WeightingCriteria)ctx.Reader.ReadInt32();
@@ -173,10 +172,9 @@ namespace Microsoft.ML.Transforms.Text
                 // int: Weighting Criteria
                 // bool[NgramLength]: NonEmptyLevels
 
-                Contracts.Assert(0 < NgramLength && NgramLength <= NgramBufferBuilder.MaxSkipNgramLength);
+                Contracts.Assert(0 < NgramLength);
                 ctx.Writer.Write(NgramLength);
-                Contracts.Assert(0 <= SkipLength && SkipLength <= NgramBufferBuilder.MaxSkipNgramLength);
-                Contracts.Assert(NgramLength + SkipLength <= NgramBufferBuilder.MaxSkipNgramLength);
+                Contracts.Assert(0 <= SkipLength);
                 ctx.Writer.Write(SkipLength);
                 Contracts.Assert(Enum.IsDefined(typeof(NgramExtractingEstimator.WeightingCriteria), Weighting));
                 ctx.Writer.Write((int)Weighting);
@@ -373,6 +371,20 @@ namespace Microsoft.ML.Transforms.Text
 
             int numFull = lims.Count(l => l <= 0);
             int ngramLength = lims.Count;
+            if (ngramDictionary != default)
+            {
+                for (int i = 0; i < ngramDictionary.Count; i++)
+                {
+                    uint[] ngram = new uint[0];
+                    ngramDictionary.GetById(i, ref ngram);
+                    if (counts[ngram.Length - 1] < lims[ngram.Length - 1])
+                    {
+                        pool.TryAdd(ngram, 0, ngram.Length, out _);
+                        if (++counts[ngram.Length - 1] >= lims[ngram.Length - 1])
+                            numFull++;
+                    }
+                }
+            }
             return
                 (uint[] ngram, int lim, int icol, ref bool more) =>
                 {
@@ -389,11 +401,11 @@ namespace Microsoft.ML.Transforms.Text
                         if (counts[max] < lims[max] && pool.TryAdd(ngram, 0, lim, out slot) && ++counts[max] >= lims[max])
                             numFull++;
                     }
-                    else
-                    {
-                        if (counts[max] < lims[max] && ngramDictionary.Get(ngram, 0, lim) != -1 && pool.TryAdd(ngram, 0, lim, out slot) && ++counts[max] >= lims[max])
-                            numFull++;
-                    }
+                    //else
+                    //{
+                    //    //if (counts[max] < lims[max] && ngramDictionary.Get(ngram, 0, lim) != -1 && pool.TryAdd(ngram, 0, lim, out slot) && ++counts[max] >= lims[max])
+                    //        //numFull++;
+                    //}
 
                     // Note: 'slot' is either the id of the added n-gram or -1. In case it is -1, find its id.
                     // Note: 'more' controls whether more n-grams/skip-grams should be processed in the current
@@ -1102,10 +1114,8 @@ namespace Microsoft.ML.Transforms.Text
                 if (ngramLength == 1 && skipLength != 0)
                     throw Contracts.ExceptUserArg(nameof(skipLength), string.Format(
                         "{0} (actual value: {1}) can only be zero when {2} set to one.", nameof(skipLength), skipLength, nameof(ngramLength)));
-                if (ngramLength + skipLength > NgramBufferBuilder.MaxSkipNgramLength)
-                    throw Contracts.ExceptUserArg(nameof(skipLength),
-                        $"The sum of skipLength and ngramLength must be less than or equal to {NgramBufferBuilder.MaxSkipNgramLength}");
-                Contracts.CheckUserArg(0 < ngramLength && ngramLength <= NgramBufferBuilder.MaxSkipNgramLength, nameof(ngramLength));
+
+                Contracts.CheckUserArg(0 < ngramLength, nameof(ngramLength));
 
                 var limits = new int[ngramLength];
                 if (!useAllLengths)
