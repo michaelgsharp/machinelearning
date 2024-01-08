@@ -20,13 +20,13 @@ namespace Microsoft.ML.TorchSharp.Utils
 
             foreach (var kvp in dictionary)
             {
-                if (kvp.Value is torch.Tensor tensor)
+                if (kvp.Value is torch.Tensor tensor && !tensor.IsInvalid)
                     tensor.Dispose();
 
                 else if (kvp.Value is Dictionary<dynamic, dynamic> subDictionary)
                     DisposeDictionaryWithTensor(subDictionary);
 
-                if (kvp.Key is torch.Tensor keyTensor)
+                if (kvp.Key is torch.Tensor keyTensor && !keyTensor.IsInvalid)
                     keyTensor.Dispose();
 
                 else if (kvp.Key is Dictionary<dynamic, dynamic> subDictionary)
